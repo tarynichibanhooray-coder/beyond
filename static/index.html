@@ -147,7 +147,13 @@
     const TYPEWRITER_MS = 35;
     const TYPEWRITER_MS_SECONDARY = 29;
     const SPEAKER_PAUSE_MS = 2000;
+    const READING_LINE_RATIO = 0.32;
+    const TYPING_THRESHOLD_RATIO = 0.65;
+    const SCROLL_PAD_BASE_VH = 70;
+    const SCROLL_PAD_SLACK_PX = 16;
     const typewriterHandles = new Map();
+    let scrollPadEl = null;
+    const scrollPadHost = document.querySelector("main.wrap");
     let activeSpeaker = null;
     let councilMembers = [];
     let councilRoster = [];
@@ -171,6 +177,80 @@
       return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
+    function scrollTop() {
+      return window.scrollY || document.documentElement.scrollTop || 0;
+    }
+
+    function maxScrollY() {
+      return Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    }
+
+    function ensureScrollPad() {
+      if (!scrollPadHost) return null;
+      if (!scrollPadEl) {
+        scrollPadEl = document.createElement("div");
+        scrollPadEl.className = "scroll-pad";
+        scrollPadEl.setAttribute("aria-hidden", "true");
+        scrollPadHost.appendChild(scrollPadEl);
+      } else {
+        scrollPadHost.appendChild(scrollPadEl);
+      }
+      return scrollPadEl;
+    }
+
+    function activateScrollPad() {
+      const pad = ensureScrollPad();
+      if (!pad) return;
+      const base = Math.round(window.innerHeight * (SCROLL_PAD_BASE_VH / 100));
+      if (scrollPadHeightPx() < base) {
+        pad.style.height = base + "px";
+      }
+    }
+
+    function deactivateScrollPad() {
+      if (scrollPadEl) scrollPadEl.style.height = "0px";
+    }
+
+    function scrollPadHeightPx() {
+      return scrollPadEl ? scrollPadEl.offsetHeight : 0;
+    }
+
+    function ensureScrollRoom(blockEl) {
+      if (!blockEl) return;
+      const pad = ensureScrollPad();
+      if (!pad) return;
+      const targetTop = window.innerHeight * READING_LINE_RATIO;
+      const rect = blockEl.getBoundingClientRect();
+      const blockDocTop = scrollTop() + rect.top;
+      const desiredScrollY = blockDocTop - targetTop;
+      const deficit = desiredScrollY - maxScrollY();
+      if (deficit > 0) {
+        pad.style.height = (scrollPadHeightPx() + Math.ceil(deficit + SCROLL_PAD_SLACK_PX)) + "px";
+        void pad.offsetHeight;
+      }
+    }
+
+    function anchorBlock(el) {
+      if (!el) return;
+      ensureScrollRoom(el);
+      const targetTop = window.innerHeight * READING_LINE_RATIO;
+      const rect = el.getBoundingClientRect();
+      const delta = rect.top - targetTop;
+      if (Math.abs(delta) > 4) {
+        window.scrollTo(0, scrollTop() + delta);
+      }
+    }
+
+    function keepActiveAboveThreshold(el) {
+      if (!el) return;
+      ensureScrollRoom(el);
+      const rect = el.getBoundingClientRect();
+      const limit = window.innerHeight * TYPING_THRESHOLD_RATIO;
+      if (rect.bottom > limit) {
+        window.scrollBy(0, rect.bottom - limit);
+      }
+    }
+
     function typeInto(el, text, opts) {
       opts = opts || {};
       stopTyping(el);
@@ -180,10 +260,12 @@
       el.classList.add("typing");
       let i = 0;
       const speed = opts.speedMs != null ? opts.speedMs : TYPEWRITER_MS;
+      const onStep = opts.onStep;
       return new Promise((resolve) => {
         const id = setInterval(() => {
           i += 1;
           el.textContent = full.slice(0, i);
+          if (onStep) onStep(el);
           if (i >= full.length) {
             stopTyping(el);
             resolve();
@@ -574,7 +656,8 @@
       log.appendChild(block);
       const el = block.querySelector(".qtext");
       if (animate) {
-        await typeInto(el, text);
+        anchorBlock(block);
+        await typeInto(el, text, { onStep: keepActiveAboveThreshold });
       } else {
         el.textContent = spaceEmDashes(text);
       }
@@ -610,6 +693,7 @@
 
     function beginDeliberation() {
       councilIntro.classList.add("session-active");
+      activateScrollPad();
       pulseAllListening();
     }
 
@@ -872,7 +956,8 @@
         if (!card || !typed) continue;
         card.classList.add("thought-typing");
         setCouncilSpeaking(memberId);
-        await typeInto(typed, text);
+        anchorBlock(card);
+        await typeInto(typed, text, { onStep: keepActiveAboveThreshold });
         card.classList.remove("thought-typing");
       }
       pulseAllListening();
@@ -928,7 +1013,8 @@
           "<span class=\"line-text\"></span>";
         lines.appendChild(line);
         const textEl = line.querySelector(".line-text");
-        await typeInto(textEl, full);
+        anchorBlock(line);
+        await typeInto(textEl, full, { onStep: keepActiveAboveThreshold });
         line.classList.remove("line-speaking");
         saveSessionBackup();
         return;
@@ -977,9 +1063,11 @@
       turnEl.appendChild(forgedEl);
       setActiveTurnSection(turnEl, forgedEl);
       setCouncilSpeaking(data.chosen_asker);
+      anchorBlock(forgedEl);
       await typeInto(
         forgedEl.querySelector(".q-next"),
-        data.next_question || ""
+        data.next_question || "",
+        { onStep: keepActiveAboveThreshold }
       );
       saveSessionBackup();
     }
@@ -1009,7 +1097,8 @@
         if (finalBox) finalBox.classList.remove("hidden");
         finalQ.textContent = "";
         await pauseBetweenSpeakers();
-        await typeInto(finalQ, data.final_question || "");
+        anchorBlock(finalBox);
+        await typeInto(finalQ, data.final_question || "", { onStep: keepActiveAboveThreshold });
         revealDownload();
         endDeliberation();
         sessionId = null;
@@ -1028,6 +1117,7 @@
         }
         syncAnswerPrompt();
         await pauseBetweenSpeakers();
+        activateScrollPad();
         await appendFeedQuestion(currentQuestion, true);
         qa.classList.remove("hidden");
         if (!timerExpired) {
@@ -1064,6 +1154,7 @@
     function clear() {
       stopCountdown();
       endDeliberation();
+      deactivateScrollPad();
       log.innerHTML = "";
       if (sessionExport) sessionExport.classList.add("hidden");
       finalBox.classList.add("hidden");
@@ -1128,6 +1219,7 @@
         startCountdown(data.remaining_sec);
         if (data.council) renderCouncil(data.council);
         clearSessionBackup();
+        activateScrollPad();
         await appendFeedQuestion(currentQuestion, true);
         qa.classList.remove("hidden");
         councilIntro.classList.add("session-active");

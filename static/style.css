@@ -1157,6 +1157,12 @@ body {
   margin-bottom: 2rem;
 }
 
+.scroll-pad {
+  height: 0;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .hidden {
   display: none !important;
 }
