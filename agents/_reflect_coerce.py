@@ -22,6 +22,8 @@ def _first_int(data: dict[str, Any], *keys: str, default: int = 50) -> int:
             continue
         if isinstance(value, (int, float)):
             return max(0, min(100, int(value)))
+        if isinstance(value, str) and value.strip().isdigit():
+            return max(0, min(100, int(value.strip())))
     return default
 
 
@@ -151,11 +153,22 @@ REFLECT_COERCERS = {
     LambdaOutput: coerce_lambda_reflect,
 }
 
+REFLECT_COERCERS_BY_NAME = {
+    "KierkegaardReflection": coerce_kierkegaard_reflect,
+    "ArabiOutput": coerce_arabi_reflect,
+    "PsiOutput": coerce_psi_reflect,
+    "LambdaOutput": coerce_lambda_reflect,
+}
+
+
+def _coercer_for_model(model: type) -> Any | None:
+    return REFLECT_COERCERS.get(model) or REFLECT_COERCERS_BY_NAME.get(getattr(model, "__name__", ""))
+
 
 def coerce_reflect_payload(model: type, data: Any) -> Any:
     if not isinstance(data, dict):
         return data
-    coercer = REFLECT_COERCERS.get(model)
+    coercer = _coercer_for_model(model)
     if coercer is None:
         return data
     return coercer(data)

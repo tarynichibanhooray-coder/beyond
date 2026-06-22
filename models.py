@@ -40,7 +40,7 @@ class ConversationLine(BaseModel):
 class CouncilDecision(BaseModel):
     chosen_asker: AskerName
     next_question: str
-    rationale: str
+    rationale: str = ""
 
 
 class CouncilTurnResult(BaseModel):

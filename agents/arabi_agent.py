@@ -14,10 +14,10 @@ def _mock_reflect(ctx: TurnContext) -> ArabiOutput:
     snippet = ctx.transcript.strip()[:100]
     return ArabiOutput(
         disclosure_read=(
-            f"Their searching is not failure but tajalli: \"{snippet}\" "
-            "as a particular divine showing-through."
+            f"Their searching is not failure: \"{snippet}\" "
+            "shows something larger moving through them."
         ),
-        barzakh_note="They stand in the threshold itself—not before real life, but inside it.",
+        barzakh_note="They stand in the in-between itself—not before real life, but inside it.",
         mirror_read="Something larger than their personal story moves through this moment.",
         color_intensity=64,
     )
@@ -28,8 +28,8 @@ def _mock_speak(
     conversation: list[ConversationLine],
 ) -> str:
     return (
-        "You are already in the barzakh—the between-place is not a corridor to elsewhere. "
-        "What if this not-knowing is itself a disclosure?"
+        "You are already in the in-between—not a hallway on the way somewhere else. "
+        "What if this not-knowing is itself telling you something?"
     )
 
 

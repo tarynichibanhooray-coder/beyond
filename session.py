@@ -25,6 +25,8 @@ class SessionManager:
     conversation_history: list[dict] = field(default_factory=list)
     heart_rate_data: list[tuple[float, float]] = field(default_factory=list)
     last_transcript_path: Path | None = None
+    initial_question: str = ""
+    current_question: str = ""
     usage: UsageLedger = field(default_factory=UsageLedger)
 
     def __post_init__(self) -> None:
@@ -41,16 +43,27 @@ class SessionManager:
     def remaining(self) -> int:
         return max(0, int(self.timer_seconds - self.elapsed()))
 
-    def start_session(self) -> None:
+    def start_session(self, *, initial_question: str = "What brought you here?") -> None:
         self._start_monotonic = time.monotonic()
         self.conversation_history.clear()
         self.heart_rate_data.clear()
         self.usage = UsageLedger()
+        self.initial_question = initial_question
+        self.current_question = initial_question
         settings.transcript_dir.mkdir(parents=True, exist_ok=True)
         stamp = time.strftime("%Y%m%d-%H%M%S")
         self.last_transcript_path = settings.transcript_dir / f"session-{stamp}.json"
         self._save_transcript()
         log.info("Session started (%ss); transcript %s", self.timer_seconds, self.last_transcript_path)
+
+    def note_current_question(self, question: str) -> None:
+        text = question.strip()
+        if not text:
+            return
+        self.current_question = text
+        if not self.initial_question:
+            self.initial_question = text
+        self._save_transcript()
 
     async def run_turn(
         self,
@@ -91,9 +104,9 @@ class SessionManager:
                             "conversation": [c.model_dump() for c in result.conversation],
                             "chosen_asker": result.decision.chosen_asker,
                             "next_question": result.decision.next_question,
-                            "decision_rationale": result.decision.rationale,
                         }
                     )
+                    self.current_question = result.decision.next_question.strip() or question
                     self._save_transcript()
                     log.info("Transcript saved (turn %s): %s", len(self.conversation_history), self.last_transcript_path)
                     log.info(
@@ -116,13 +129,22 @@ class SessionManager:
         log.info("Session ended; transcript %s", self.last_transcript_path)
         return final
 
+    def _transcript_payload(self) -> list[dict[str, Any]]:
+        meta = {
+            "session": {
+                "initial_question": self.initial_question,
+                "current_question": self.current_question,
+            }
+        }
+        return [meta, *self.conversation_history]
+
     def _save_transcript(self) -> Path:
         if self.last_transcript_path is None:
             stamp = time.strftime("%Y%m%d-%H%M%S")
             self.last_transcript_path = settings.transcript_dir / f"session-{stamp}.json"
         path = self.last_transcript_path
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(self.conversation_history, indent=2, default=str))
+        path.write_text(json.dumps(self._transcript_payload(), indent=2, default=str))
         return path
 
 

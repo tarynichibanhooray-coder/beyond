@@ -55,7 +55,7 @@ class PsiAgent:
                 client,
                 label="morrison.reflect",
                 model=settings.anthropic_model,
-                max_tokens=280,
+                max_tokens=350,
                 system=PSI_REFLECT,
                 messages=[
                     {
@@ -87,6 +87,6 @@ class PsiAgent:
         user = speak_user_block(ctx, self.member_id, reflections, conversation)
 
         def _call() -> str:
-            return call_speak(MORRISON_SPEAK, user, label="morrison.speak")
+            return call_speak(MORRISON_SPEAK, user, label="morrison.speak", max_tokens=350)
 
         return await asyncio.to_thread(_call)

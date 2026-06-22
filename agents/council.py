@@ -40,10 +40,6 @@ def _mock_decide(ctx: TurnContext, conversation: list[ConversationLine], roster:
     return CouncilDecision(
         chosen_asker=chosen,
         next_question=questions[chosen],
-        rationale=(
-            f"{display_name(chosen)} should ask because the council converged on "
-            "their line of pressure after each spoke once."
-        ),
     )
 
 
@@ -74,7 +70,7 @@ class AgentCouncil:
         ctx: TurnContext,
         history_snippet: str,
     ) -> AsyncIterator[dict[str, Any]]:
-        yield {"type": "phase", "phase": "reflect", "label": "Each member considers alone…"}
+        yield {"type": "phase", "phase": "reflect"}
 
         reflect_tasks = {
             member_id: self._agents[member_id].reflect(ctx) for member_id in self.roster
@@ -159,7 +155,7 @@ class AgentCouncil:
                 client,
                 label="council.decide",
                 model=settings.anthropic_model,
-                max_tokens=320,
+                max_tokens=280,
                 system=COUNCIL_DECIDE,
                 messages=[{"role": "user", "content": payload}],
             )

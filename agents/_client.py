@@ -4,7 +4,7 @@ import json
 import re
 from typing import TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from agents._reflect_coerce import coerce_reflect_payload
 from config import settings
@@ -55,4 +55,10 @@ def parse_json_response(text: str, model: type[TModel]) -> TModel:
     raw = extract_json_block(text)
     data = json.loads(raw)
     data = coerce_reflect_payload(model, data)
-    return model.model_validate(data)
+    try:
+        return model.model_validate(data)
+    except ValidationError:
+        if isinstance(data, dict):
+            data = coerce_reflect_payload(model, data)
+            return model.model_validate(data)
+        raise

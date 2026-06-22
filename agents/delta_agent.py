@@ -17,9 +17,15 @@ from models import (
 
 def _mock_reflect(ctx: TurnContext) -> KierkegaardReflection:
     return KierkegaardReflection(
-        dread_read="Something in them is opening toward a life they have not yet claimed.",
+        dread_read=(
+            "Something in them is opening toward a life they have not yet claimed—"
+            "the dizziness before infinite possibility, not failure."
+        ),
         avoided_choice="They hesitate before a good they already recognize.",
-        leap_pressure="Becoming themselves is nearer than they think—and worth trusting.",
+        leap_pressure=(
+            "Becoming themselves is nearer than they think—and worth trusting, "
+            "even when it terrifies."
+        ),
         color_intensity=58,
     )
 
@@ -31,9 +37,13 @@ def _mock_speak(
     if len(conversation) == 2:
         return (
             "You both speak truly—and both honor what they carry. "
-            "Still, there is a life here only they can choose to inhabit."
+            "Still, there is a life here only they can choose to inhabit—and that choice "
+            "will not feel safe. It will feel like standing at the edge of everything open."
         )
-    return "What they love is already showing itself; the question is whether they will trust it."
+    return (
+        "What they love is already showing itself; the question is whether they will trust it "
+        "when freedom feels like vertigo, not reassurance."
+    )
 
 
 def _mock_delta_final(history_summary: str) -> DeltaFinal:
@@ -59,7 +69,7 @@ class DeltaAgent:
                 client,
                 label="kierkegaard.reflect",
                 model=settings.anthropic_model,
-                max_tokens=280,
+                max_tokens=350,
                 system=KIERKEGAARD_REFLECT,
                 messages=[
                     {
@@ -91,7 +101,7 @@ class DeltaAgent:
         user = speak_user_block(ctx, self.member_id, reflections, conversation)
 
         def _call() -> str:
-            return call_speak(KIERKEGAARD_SPEAK, user, label="kierkegaard.speak")
+            return call_speak(KIERKEGAARD_SPEAK, user, label="kierkegaard.speak", max_tokens=350)
 
         return await asyncio.to_thread(_call)
 

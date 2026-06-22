@@ -39,16 +39,15 @@ MEMBER_PROFILES: dict[CouncilMemberId, MemberProfile] = {
         glyph="◎",
         name="Ibn Arabi",
         years="1165–1240",
-        role="The Disclosure",
+        role="The Threshold",
         bio_role=(
-            "Reads the person as tajalli—divine disclosure through this particular "
-            "human in this moment. The threshold (barzakh) is not a waiting room; "
-            "it is where the most real meeting happens."
+            "Reads what is already opening in this person—not waiting for life to start, "
+            "but meeting them in the in-between place where the most real things happen."
         ),
         bio_pro=(
-            "Andalusian mystic philosopher whose work on imagination (khayal), "
-            "the barzakh, and the self as mirror remains among the most rigorous "
-            "metaphysics of human experience."
+            "Andalusian mystic philosopher whose work on imagination, the threshold, "
+            "and the self as mirror remains among the most rigorous metaphysics "
+            "of human experience."
         ),
         css_class="arabi",
     ),
@@ -73,10 +72,12 @@ MEMBER_PROFILES: dict[CouncilMemberId, MemberProfile] = {
         glyph="Ψ",
         name="Toni Morrison",
         years="1931–2019",
-        role="The Witness",
+        role="The Clearing",
         bio_role=(
-            "Holds what you carry: memory in the body, stories that shaped you, "
-            "what must be named before it can be lived."
+            "Sees through language to what is actually present — the word chosen over another word, "
+            "what is named and what is carefully left unnamed. Holds the stories that shaped you, "
+            "and what must be named before it can be lived. Practical and undeceived: "
+            "neither cosmic nor urgent, but clear."
         ),
         bio_pro=(
             "American writer and professor whose fiction and criticism insist "
@@ -91,12 +92,12 @@ MEMBER_PROFILES: dict[CouncilMemberId, MemberProfile] = {
         years="1813–1855",
         role="The Leap",
         bio_role=(
-            "Speaks for becoming—the life you are already moving toward—and "
-            "asks the question that helps you choose it with courage."
+            "Names the dread of freedom—the choice you postpone—and presses you "
+            "toward a question that demands you decide how to live."
         ),
         bio_pro=(
-            "Danish philosopher and theologian whose writing on faith, love, "
-            "and selfhood is passionate, intimate, and never merely negative."
+            "Danish philosopher and theologian, a founder of existential thought, "
+            "who wrote on faith, anxiety, and the leap of choice."
         ),
         css_class="kierkegaard",
     ),

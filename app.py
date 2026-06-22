@@ -6,7 +6,7 @@ import uuid
 from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -17,6 +17,8 @@ from agents.roster import member_profiles_for_roster, parse_roster
 from config import settings
 from models import CouncilTurnResult
 from session import SessionManager
+from utils.question_clarity import is_confusion_transcript, rephrase_question
+from utils.session_export import export_transcript_file
 from utils.usage import log_turn_usage, server_usage, server_usage_snapshot
 
 ROOT = Path(__file__).resolve().parent
@@ -76,6 +78,7 @@ class TurnResponse(BaseModel):
     final_question: str | None = None
     reasoning: str | None = None
     transcript_path: str | None = None
+    question_rephrased: bool = False
 
 
 class AnswerRequest(BaseModel):
@@ -123,6 +126,44 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
 
 
+async def _rephrase_turn_response(
+    state: _SessionState,
+    *,
+    session_id: str,
+    original_question: str,
+    transcript: str,
+    usage_before,
+) -> TurnResponse:
+    simpler = await rephrase_question(original_question, transcript)
+    state.question = simpler
+    state.sm.note_current_question(simpler)
+    usage = _usage_payload(state.sm.usage, usage_before)
+    model = settings.anthropic_model
+    budget = settings.token_budget
+    transcript_path = (
+        str(state.sm.last_transcript_path) if state.sm.last_transcript_path else None
+    )
+    return TurnResponse(
+        session_id=session_id,
+        turn=state.turn,
+        question=original_question,
+        transcript=transcript,
+        reflections={},
+        council_roster=list(state.sm.council_roster),
+        conversation=[],
+        chosen_asker="",
+        chosen_asker_display="",
+        next_question=simpler,
+        decision_rationale="",
+        remaining_sec=state.sm.remaining(),
+        done=False,
+        mock_mode=settings.mock_mode,
+        usage=usage,
+        transcript_path=transcript_path,
+        question_rephrased=True,
+    )
+
+
 async def _finalize_turn(
     state: _SessionState,
     *,
@@ -139,6 +180,7 @@ async def _finalize_turn(
 
     state.turn += 1
     state.question = next_q
+    state.sm.note_current_question(next_q)
 
     remaining = state.sm.remaining()
     done = remaining <= 0 or state.turn >= 3
@@ -172,7 +214,7 @@ async def _finalize_turn(
         chosen_asker=chosen,
         chosen_asker_display=DISPLAY_NAMES.get(chosen, chosen),
         next_question=next_q,
-        decision_rationale=result.decision.rationale,
+        decision_rationale="",
         remaining_sec=remaining,
         done=done,
         mock_mode=settings.mock_mode,
@@ -200,7 +242,7 @@ async def council_config() -> dict:
 @app.post("/api/session/start")
 async def start_session() -> StartResponse:
     sm = SessionManager()
-    sm.start_session()
+    sm.start_session(initial_question=INITIAL_QUESTION)
     session_id = uuid.uuid4().hex
     _SESSIONS[session_id] = _SessionState(sm=sm, question=INITIAL_QUESTION, turn=0)
     roster = parse_roster()
@@ -216,24 +258,43 @@ async def start_session() -> StartResponse:
     )
 
 
+@app.post("/api/session/{session_id}/checkpoint")
+async def checkpoint(session_id: str) -> dict:
+    state = _SESSIONS.get(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Unknown session_id")
+    state.sm.note_current_question(state.question)
+    return {
+        "transcript_path": str(state.sm.last_transcript_path)
+        if state.sm.last_transcript_path
+        else None,
+    }
+
+
 @app.post("/api/session/{session_id}/answer")
 async def answer(session_id: str, req: AnswerRequest) -> TurnResponse:
     state = _SESSIONS.get(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
 
-    if state.sm.remaining() <= 0:
-        raise HTTPException(status_code=409, detail="Session has ended")
-
     if state.turn_busy:
         raise HTTPException(status_code=409, detail="Turn already in progress")
 
+    state.sm.note_current_question(state.question)
     state.turn_busy = True
     bpm_window: list[tuple[float, float]] = []
 
     q = state.question
     usage_before = state.sm.usage.snapshot()
     try:
+        if is_confusion_transcript(req.transcript):
+            return await _rephrase_turn_response(
+                state,
+                session_id=session_id,
+                original_question=q,
+                transcript=req.transcript,
+                usage_before=usage_before,
+            )
         result = await state.sm.run_turn(q, req.transcript, bpm_window)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -272,12 +333,10 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
     if state is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
 
-    if state.sm.remaining() <= 0:
-        raise HTTPException(status_code=409, detail="Session has ended")
-
     if state.turn_busy:
         raise HTTPException(status_code=409, detail="Turn already in progress")
 
+    state.sm.note_current_question(state.question)
     state.turn_busy = True
     bpm_window: list[tuple[float, float]] = []
     q = state.question
@@ -285,6 +344,16 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
 
     async def generate():
         try:
+            if is_confusion_transcript(req.transcript):
+                response = await _rephrase_turn_response(
+                    state,
+                    session_id=session_id,
+                    original_question=q,
+                    transcript=req.transcript,
+                    usage_before=usage_before,
+                )
+                yield _sse({"type": "turn_done", **response.model_dump()})
+                return
             async for event in state.sm.run_turn_events(q, req.transcript, bpm_window):
                 if event["type"] == "complete":
                     result = CouncilTurnResult.model_validate(event["result"])
@@ -345,6 +414,21 @@ async def usage(session_id: str | None = None) -> dict:
     return payload
 
 
+@app.get("/api/transcript/{filename}/export")
+async def export_transcript(filename: str) -> Response:
+    if not filename.endswith(".json") or ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid transcript filename")
+    path = settings.transcript_dir / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Transcript not found")
+    html_out, html_name = export_transcript_file(path)
+    return Response(
+        content=html_out,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{html_name}"'},
+    )
+
+
 @app.get("/api/health")
 async def health() -> dict[str, str | bool]:
     return {
@@ -355,6 +439,9 @@ async def health() -> dict[str, str | bool]:
 
 
 if __name__ == "__main__":
+    import os
+
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=8765)
+    port = int(os.environ.get("PORT", "8765"))
+    uvicorn.run(app, host="0.0.0.0", port=port)

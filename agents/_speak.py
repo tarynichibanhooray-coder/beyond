@@ -42,7 +42,13 @@ def speak_user_block(
     )
 
 
-def call_speak(system: str, user_content: str, *, label: str = "council.speak") -> str:
+def call_speak(
+    system: str,
+    user_content: str,
+    *,
+    label: str = "council.speak",
+    max_tokens: int = 180,
+) -> str:
     client = get_anthropic_client()
     if client is None:
         raise RuntimeError("mock should not call call_speak")
@@ -50,7 +56,7 @@ def call_speak(system: str, user_content: str, *, label: str = "council.speak") 
         client,
         label=label,
         model=settings.anthropic_model,
-        max_tokens=180,
+        max_tokens=max_tokens,
         system=system,
         messages=[{"role": "user", "content": user_content}],
     )

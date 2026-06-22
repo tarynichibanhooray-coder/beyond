@@ -7,14 +7,51 @@
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
+  <div id="aura" class="idle" aria-hidden="true">
+    <svg class="aura-filter" aria-hidden="true" focusable="false">
+      <defs>
+        <filter id="aura-smoke" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
+          <feTurbulence type="fractalNoise" baseFrequency="0.009" numOctaves="5" seed="11" result="noise">
+            <animate attributeName="baseFrequency" dur="18s" repeatCount="indefinite"
+              values="0.004;0.013;0.006;0.015;0.005;0.011;0.004" />
+            <animate attributeName="seed" dur="27s" repeatCount="indefinite"
+              values="11;24;16;29;19;11" />
+          </feTurbulence>
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="100" xChannelSelector="R" yChannelSelector="G" result="warp">
+            <animate attributeName="scale" dur="15s" repeatCount="indefinite"
+              values="60;135;78;148;65;120;60" />
+          </feDisplacementMap>
+          <feGaussianBlur in="warp" stdDeviation="36" />
+        </filter>
+      </defs>
+    </svg>
+    <div class="aura-plume ambient">
+      <span class="aura-wisp w1"></span>
+      <span class="aura-wisp w2"></span>
+      <span class="aura-wisp w3"></span>
+      <span class="aura-wisp w4"></span>
+    </div>
+    <div class="aura-plume arabi">
+      <span class="aura-wisp w1"></span>
+      <span class="aura-wisp w2"></span>
+      <span class="aura-wisp w3"></span>
+    </div>
+    <div class="aura-plume morrison">
+      <span class="aura-wisp w1"></span>
+      <span class="aura-wisp w2"></span>
+      <span class="aura-wisp w3"></span>
+    </div>
+    <div class="aura-plume kierkegaard">
+      <span class="aura-wisp w1"></span>
+      <span class="aura-wisp w2"></span>
+      <span class="aura-wisp w3"></span>
+    </div>
+  </div>
   <main class="wrap">
     <header class="head">
-      <div class="head-row">
-        <div class="head-title">
-          <h1>In This Time Before</h1>
-          <p class="sub">A chamber session at a historical threshold</p>
-        </div>
-        <div class="head-metrics">
+      <div class="head-metrics-fixed">
+        <div class="head-metrics-cluster">
+          <span id="timer" class="head-clock idle" aria-live="polite" aria-label="Time remaining">--:--</span>
           <div id="usage" class="token-meter idle" aria-live="polite" aria-label="Token usage">
             <div class="token-row">
               <span class="tok-label">in</span>
@@ -31,9 +68,9 @@
               <span id="tok-rem" class="tok-rem">∞</span>
             </div>
           </div>
-          <span id="timer" class="head-clock idle" aria-live="polite" aria-label="Time remaining">--:--</span>
         </div>
       </div>
+      <h1>In This Time Before</h1>
     </header>
 
     <section class="council-intro" id="councilIntro" aria-label="The council">
@@ -58,14 +95,17 @@
     <section id="qa" class="qa hidden">
       <form id="answerForm" class="abox">
         <label class="acap" for="answer">Response</label>
-        <textarea id="answer" rows="3" placeholder="Type your response…"></textarea>
+        <textarea id="answer" rows="3" placeholder="Type your response…" autocomplete="off"></textarea>
       </form>
     </section>
 
     <section id="final" class="final hidden">
       <h2>Your final question</h2>
       <p id="final-q" class="final-q"></p>
-      <p id="final-meta" class="final-meta"></p>
+    </section>
+
+    <section id="sessionExport" class="session-export hidden">
+      <button type="button" id="downloadSession" class="btn download-btn">Download conversation</button>
     </section>
   </main>
   <script>
@@ -83,8 +123,10 @@
     const watchSpeaker = document.getElementById("watchSpeaker");
     const watchLine = document.getElementById("watchLine");
     const finalBox = document.getElementById("final");
+    const sessionExport = document.getElementById("sessionExport");
     const finalQ = document.getElementById("final-q");
-    const finalMeta = document.getElementById("final-meta");
+    const downloadSession = document.getElementById("downloadSession");
+    const auraEl = document.getElementById("aura");
     const usageEl = document.getElementById("usage");
     const tokIn = document.getElementById("tok-in");
     const tokOut = document.getElementById("tok-out");
@@ -92,14 +134,22 @@
     const tokRem = document.getElementById("tok-rem");
 
     let sessionId = null;
+    let sessionTranscriptFile = null;
     let mockMode = true;
     let currentQuestion = null;
     let remainingSec = null;
     const SESSION_BACKUP_KEY = "before-session-backup";
     let countdownId = null;
-    const TYPEWRITER_MS = 26;
-    const TYPEWRITER_MS_SECONDARY = 22;
+    let timerExpired = false;
+    let allowFinalSubmit = false;
+    let answerLocked = false;
+    const TYPEWRITER_MS = 35;
+    const TYPEWRITER_MS_SECONDARY = 29;
+    const SPEAKER_PAUSE_MS = 2000;
     const typewriterHandles = new Map();
+    let activeSpeaker = null;
+    let councilMembers = [];
+    let councilRoster = [];
 
     function stopTyping(el) {
       if (!el) return;
@@ -118,7 +168,7 @@
     function typeInto(el, text, opts) {
       opts = opts || {};
       stopTyping(el);
-      const full = text || "";
+      const full = spaceEmDashes(text || "");
       el.textContent = "";
       if (!full) return Promise.resolve();
       el.classList.add("typing");
@@ -136,10 +186,6 @@
         typewriterHandles.set(el, id);
       });
     }
-    let activeSpeaker = null;
-
-    let councilMembers = [];
-    let councilRoster = [];
 
     const REFLECTION_FIELD = {
       arabi: "disclosure_read",
@@ -170,22 +216,22 @@
         glyph: "◎",
         name: "Ibn Arabi",
         years: "1165–1240",
-        role: "The Disclosure",
+        role: "The Threshold",
         css_class: "arabi",
         bio_role:
-          "Reads the person as tajalli—divine disclosure through this particular human in this moment. The threshold (barzakh) is not a waiting room; it is where the most real meeting happens.",
+          "Reads what is already opening in this person—not waiting for life to start, but meeting them in the in-between place where the most real things happen.",
         bio_pro:
-          "Andalusian mystic philosopher whose work on imagination (khayal), the barzakh, and the self as mirror remains among the most rigorous metaphysics of human experience.",
+          "Andalusian mystic philosopher whose work on imagination, the threshold, and the self as mirror remains among the most rigorous metaphysics of human experience.",
       },
       {
         id: "morrison",
         glyph: "Ψ",
         name: "Toni Morrison",
         years: "1931–2019",
-        role: "The Witness",
+        role: "The Clearing",
         css_class: "morrison",
         bio_role:
-          "Holds what you carry: memory in the body, stories that shaped you, what must be named before it can be lived.",
+          "Sees through language to what is actually present — the word chosen over another word, what is named and what is carefully left unnamed. Holds the stories that shaped you, and what must be named before it can be lived. Practical and undeceived: neither cosmic nor urgent, but clear.",
         bio_pro:
           "American writer and professor whose fiction and criticism insist that what is unspoken and unwitnessed still shapes the present.",
       },
@@ -197,23 +243,165 @@
         role: "The Leap",
         css_class: "kierkegaard",
         bio_role:
-          "Speaks for becoming—the life you are already moving toward—and asks the question that helps you choose it with courage.",
+          "Names the dread of freedom—the choice you postpone—and presses you toward a question that demands you decide how to live.",
         bio_pro:
-          "Danish philosopher and theologian whose writing on faith, love, and selfhood is passionate, intimate, and never merely negative.",
+          "Danish philosopher and theologian, a founder of existential thought, who wrote on faith, anxiety, and the leap of choice.",
       },
     ];
+
+    let auraMotionId = null;
+    let auraWispParams = null;
+    const auraReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const WISP_BASE = [
+      { sx: 1.05, sy: 1.18, rot: -14 },
+      { sx: 1.12, sy: 0.82, rot: 9 },
+      { sx: 0.88, sy: 1.24, rot: -24 },
+      { sx: 0.92, sy: 1.14, rot: 18 },
+      { sx: 1.08, sy: 0.94, rot: -8 },
+      { sx: 1.16, sy: 0.76, rot: 26 },
+      { sx: 1.06, sy: 1.16, rot: -12 },
+      { sx: 1.1, sy: 0.84, rot: 14 },
+      { sx: 0.9, sy: 1.2, rot: -20 },
+      { sx: 1.04, sy: 0.96, rot: -6 },
+      { sx: 0.94, sy: 1.1, rot: 11 },
+      { sx: 1.08, sy: 0.88, rot: -15 },
+      { sx: 1.02, sy: 1.08, rot: 7 },
+    ];
+
+    function initAuraWisps() {
+      if (auraWispParams || !auraEl) return;
+      auraWispParams = [];
+      auraEl.querySelectorAll(".aura-wisp").forEach((el, i) => {
+        const n = i + 1;
+        const base = WISP_BASE[i] || { sx: 1, sy: 1, rot: 0 };
+        const isAmbient = !!el.closest(".aura-plume.ambient");
+        auraWispParams.push({
+          el,
+          isAmbient,
+          baseSx: base.sx,
+          baseSy: base.sy,
+          baseRot: base.rot,
+          orbitRx: isAmbient ? 8.5 + (n * 1.31) % 6.5 : 3.2 + (n * 1.31) % 5.5,
+          orbitRy: isAmbient ? 7.2 + (n * 1.07) % 5.8 : 2.6 + (n * 1.07) % 4.8,
+          orbitTilt: (n * 0.873) % (Math.PI * 2),
+          orbitSpeed: isAmbient ? 0.32 + (n * 0.027) % 0.18 : 0.09 + (n * 0.019) % 0.12,
+          orbitPhase: n * 2.399963,
+          curlSpeed: isAmbient ? 0.12 + (n * 0.024) % 0.14 : 0.05 + (n * 0.017) % 0.09,
+          curlPhase: n * 1.618033,
+          driftX: isAmbient ? 0.11 + (n % 5) * 0.018 : 0.032 + (n % 5) * 0.009,
+          driftY: isAmbient ? 0.095 + (n % 4) * 0.022 : 0.028 + (n % 4) * 0.011,
+          driftPhase: n * 0.773,
+          rotSpeed: isAmbient ? 14 + (n * 1.4) % 12 : 3.5 + (n * 1.4) % 9,
+          scaleAmp: isAmbient ? 0.09 + (n % 6) * 0.015 : 0.045 + (n % 6) * 0.01,
+          motionAmp: isAmbient ? 2.6 : 1,
+          opacityBase: isAmbient ? 0.42 : 0.56 + (n % 4) * 0.08,
+          opacityAmp: isAmbient ? 0.05 : 0.1 + (n % 5) * 0.05,
+          brSeed: [n * 0.67, n * 1.11, n * 0.49, n * 1.83],
+          brBase: [
+            26 + (n * 9) % 22, 38 + (n * 11) % 26,
+            30 + (n * 7) % 24, 42 + (n * 13) % 20,
+            46 + (n * 5) % 18, 34 + (n * 17) % 22,
+            28 + (n * 19) % 26, 40 + (n * 3) % 24,
+          ],
+        });
+      });
+    }
+
+    function updateAuraWisps(now) {
+      const t = now * 0.001;
+      auraWispParams.forEach((w) => {
+        const m = w.motionAmp || 1;
+        const o = w.orbitPhase + t * w.orbitSpeed;
+        const ct = Math.cos(w.orbitTilt);
+        const st = Math.sin(w.orbitTilt);
+        const ox = Math.cos(o) * w.orbitRx;
+        const oy = Math.sin(o * 0.91 + w.curlPhase) * w.orbitRy;
+        const dx = (ox * ct - oy * st) * m
+          + Math.sin(t * w.driftX + w.driftPhase) * 2.6 * m
+          + Math.sin(t * 0.053 + w.curlPhase) * 1.5 * m;
+        const dy = (ox * st + oy * ct) * m
+          + Math.cos(t * w.driftY + w.driftPhase * 1.17) * 2.2 * m
+          + Math.cos(t * 0.041 + w.curlPhase * 0.73) * 1.3 * m;
+        const rot = w.baseRot + t * w.rotSpeed
+          + Math.sin(t * w.curlSpeed + w.curlPhase) * 9 * m
+          + Math.cos(t * 0.067 + w.driftPhase) * 5 * m;
+        const sx = w.baseSx * (1 + Math.sin(t * 0.23 + w.driftPhase) * w.scaleAmp);
+        const sy = w.baseSy * (1 + Math.cos(t * 0.17 + w.curlPhase) * w.scaleAmp * 0.9);
+        const opacity = w.opacityBase + Math.sin(t * 0.19 + w.driftPhase * 0.55) * w.opacityAmp;
+        const brRate = w.isAmbient ? 0.09 : 0.05;
+        const brSwing = w.isAmbient ? 16 : 11;
+        const br = w.brBase.map((base, j) =>
+          base + Math.sin(t * (brRate + j * 0.008) + w.brSeed[j % 4]) * brSwing
+        );
+        w.el.style.transform = "translate(" + dx.toFixed(2) + "vw, " + dy.toFixed(2)
+          + "vh) rotate(" + rot.toFixed(2) + "deg) scale(" + sx.toFixed(3)
+          + ", " + sy.toFixed(3) + ")";
+        w.el.style.opacity = opacity.toFixed(3);
+        w.el.style.borderRadius = br[0] + "% " + br[1] + "% " + br[2] + "% " + br[3]
+          + "% / " + br[4] + "% " + br[5] + "% " + br[6] + "% " + br[7] + "%";
+      });
+    }
+
+    function tickAura(now) {
+      if (!auraEl) {
+        auraMotionId = null;
+        return;
+      }
+      updateAuraWisps(now);
+      auraMotionId = requestAnimationFrame(tickAura);
+    }
+
+    function startAuraMotion() {
+      if (!auraEl) return;
+      initAuraWisps();
+      if (auraReducedMotion) {
+        updateAuraWisps(performance.now());
+        return;
+      }
+      if (auraMotionId != null) return;
+      auraMotionId = requestAnimationFrame(tickAura);
+    }
+
+    function stopAuraMotion() {
+      if (auraMotionId != null) {
+        cancelAnimationFrame(auraMotionId);
+        auraMotionId = null;
+      }
+    }
+
+    function setAura(state) {
+      if (!auraEl) return;
+      auraEl.className = state;
+      startAuraMotion();
+    }
+
+    function setAuraForSpeaker(speaker) {
+      if (speaker === "arabi" || speaker === "morrison" || speaker === "kierkegaard") {
+        setAura(speaker);
+      }
+    }
+
+    function pauseBetweenSpeakers() {
+      return new Promise((resolve) => setTimeout(resolve, SPEAKER_PAUSE_MS));
+    }
 
     function renderCouncil(members) {
       councilMembers = members || [];
       councilRoster = councilMembers.map((m) => m.id);
       if (!councilGrid || !watchMembers) return;
       councilGrid.innerHTML = councilMembers.map((m) =>
-        "<article class=\"council-member " + m.css_class + "\" data-speaker=\"" + m.id + "\">" +
+        "<article class=\"council-member " + m.css_class + "\" data-speaker=\"" + m.id + "\" " +
+        "tabindex=\"0\" role=\"button\" aria-expanded=\"false\">" +
+        "<div class=\"council-member-head\">" +
         "<h3><span class=\"glyph\">" + escapeHtml(m.glyph) + "</span> " + escapeHtml(m.name) +
-        " <span class=\"years\">" + escapeHtml(m.years) + "</span>" +
         "<span class=\"role\">" + escapeHtml(m.role) + "</span></h3>" +
+        "<span class=\"bio-open-hint\" aria-hidden=\"true\"></span></div>" +
+        "<div class=\"bio-detail\">" +
         "<p class=\"bio-role\">" + escapeHtml(m.bio_role) + "</p>" +
-        "<p class=\"bio-pro\">" + escapeHtml(m.bio_pro) + "</p></article>"
+        "<p class=\"bio-pro\">" + escapeHtml(m.bio_pro) + "</p>" +
+        "<p class=\"years\">" + escapeHtml(m.years) + "</p>" +
+        "</div></article>"
       ).join("");
       watchMembers.innerHTML = councilMembers.map((m) =>
         "<div class=\"watch-member " + m.css_class + "\" data-speaker=\"" + m.id + "\">" +
@@ -243,6 +431,91 @@
       el.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
     }
 
+    function transcriptBasename(path) {
+      if (!path) return null;
+      const parts = String(path).split(/[/\\]/);
+      return parts[parts.length - 1] || null;
+    }
+
+    function setDownloadReady(visible) {
+      if (!downloadSession) return;
+      downloadSession.disabled = !visible;
+    }
+
+    function revealDownload() {
+      if (sessionExport) sessionExport.classList.remove("hidden");
+      setDownloadReady(!!sessionTranscriptFile);
+      ensureMidScreen(sessionExport || downloadSession);
+    }
+
+    async function syncSessionCheckpoint() {
+      if (!sessionId) return;
+      try {
+        const res = await fetch(`/api/session/${sessionId}/checkpoint`, { method: "POST" });
+        if (!res.ok) return;
+        const data = await readJsonResponse(res);
+        if (data.transcript_path) {
+          sessionTranscriptFile = transcriptBasename(data.transcript_path);
+        }
+      } catch (_err) {
+        /* checkpoint best-effort */
+      }
+    }
+
+    async function onTimerExpired() {
+      if (!sessionId || timerExpired) return;
+      timerExpired = true;
+      stopCountdown();
+      syncTimer(0);
+      await syncSessionCheckpoint();
+      revealDownload();
+      const draft = answer.value.trim();
+      if (draft) {
+        allowFinalSubmit = true;
+        answer.disabled = false;
+        answer.readOnly = false;
+      } else {
+        allowFinalSubmit = false;
+        answerLocked = true;
+        answer.disabled = true;
+        answer.readOnly = true;
+      }
+    }
+
+    async function downloadSessionHtml() {
+      if (!sessionTranscriptFile || !downloadSession) return;
+      downloadSession.disabled = true;
+      try {
+        await syncSessionCheckpoint();
+        const res = await fetch(
+          "/api/transcript/" + encodeURIComponent(sessionTranscriptFile) + "/export"
+        );
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err.slice(0, 200) || "Export failed");
+        }
+        const blob = await res.blob();
+        let filename = sessionTranscriptFile.replace(/\.json$/i, ".html");
+        const disposition = res.headers.get("Content-Disposition");
+        if (disposition) {
+          const match = /filename=\"?([^\";]+)\"?/.exec(disposition);
+          if (match && match[1]) filename = match[1];
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        setStatus("Could not download session", "err");
+      } finally {
+        downloadSession.disabled = false;
+      }
+    }
+
     function saveSessionBackup() {
       if (!sessionId || !log) return;
       try {
@@ -251,8 +524,10 @@
           currentQuestion: currentQuestion,
           remainingSec: remainingSec,
           logHtml: log.innerHTML,
-          finalHtml: finalBox && !finalBox.classList.contains("hidden") ? finalBox.innerHTML : "",
+          finalQuestion: finalQ ? finalQ.textContent : "",
           finalVisible: finalBox && !finalBox.classList.contains("hidden"),
+          exportVisible: sessionExport && !sessionExport.classList.contains("hidden"),
+          sessionTranscriptFile: sessionTranscriptFile,
           qaVisible: qa && !qa.classList.contains("hidden"),
           savedAt: Date.now(),
         }));
@@ -280,8 +555,13 @@
       log.innerHTML = data.logHtml;
       if (data.finalVisible && finalBox) {
         finalBox.classList.remove("hidden");
-        if (data.finalHtml) finalBox.innerHTML = data.finalHtml;
+        if (finalQ) finalQ.textContent = data.finalQuestion || "";
       }
+      if (data.exportVisible && sessionExport) {
+        sessionExport.classList.remove("hidden");
+        setDownloadReady(!!data.sessionTranscriptFile);
+      }
+      sessionTranscriptFile = data.sessionTranscriptFile || null;
       if (data.qaVisible && qa) qa.classList.remove("hidden");
       currentQuestion = data.currentQuestion || null;
       syncAnswerPrompt();
@@ -319,7 +599,7 @@
       if (animate) {
         await typeInto(el, text);
       } else {
-        el.textContent = text;
+        el.textContent = spaceEmDashes(text);
       }
       saveSessionBackup();
       return block;
@@ -328,7 +608,7 @@
     function appendFeedAnswer(text) {
       const el = document.createElement("p");
       el.className = "feed-answer";
-      el.innerHTML = "<strong>You</strong> " + escapeHtml(text);
+      el.textContent = spaceEmDashes(text);
       log.appendChild(el);
       ensureMidScreen(el);
       saveSessionBackup();
@@ -348,7 +628,7 @@
       if (speaker && speakerName(speaker)) {
         watchSpeaker.textContent = speakerName(speaker) + " speaks";
       } else if (isAll) {
-        watchSpeaker.textContent = "Each considers alone…";
+        watchSpeaker.textContent = "Council";
       } else {
         watchSpeaker.textContent = "Council";
       }
@@ -364,6 +644,7 @@
       councilWatch.classList.add("hidden");
       councilIntro.classList.remove("session-active");
       setCouncilSpeaking(null);
+      setAura("idle");
       document.querySelectorAll(".council-member[data-speaker], .watch-member[data-speaker]").forEach((el) => {
         el.classList.remove("speaking", "listening", "active");
       });
@@ -503,9 +784,7 @@
       syncTimer(sec);
       countdownId = setInterval(() => {
         if (remainingSec == null || remainingSec <= 0) {
-          stopCountdown();
-          syncTimer(0);
-          if (sessionId) answer.disabled = true;
+          onTimerExpired();
           return;
         }
         remainingSec -= 1;
@@ -513,9 +792,14 @@
       }, 1000);
     }
 
+    function spaceEmDashes(s) {
+      if (s == null || s === "") return s || "";
+      return String(s).replace(/(\S)\s*—\s*(\S)/g, "$1 — $2");
+    }
+
     function escapeHtml(s) {
       const d = document.createElement("div");
-      d.textContent = s;
+      d.textContent = spaceEmDashes(s);
       return d.innerHTML;
     }
 
@@ -534,22 +818,28 @@
       watchLine.classList.remove("typing");
     }
 
+    function turnRoman(n) {
+      const roman = ["", "I", "II", "III"];
+      const idx = Number(n);
+      return idx >= 1 && idx <= 3 ? roman[idx] : String(n);
+    }
+
     function createTurnShell() {
+      const turnNum = log.querySelectorAll(".turn").length + 1;
       const turn = document.createElement("div");
       turn.className = "turn";
-      turn.innerHTML =
-        "<h2 class=\"turn-title\">Turn …</h2>" +
-        "<article class=\"private-thoughts pending\">" +
-        "<h3>Private thoughts (each heard the answer alone)</h3>" +
-        "<p class=\"pending-note\">Each member is considering alone…</p></article>" +
-        "<article class=\"conversation live-conversation pending\">" +
-        "<h3>Council conversation</h3><p class=\"pending-note\">Each will speak once…</p><ul></ul></article>" +
-        "<article class=\"forged pending\">" +
-        "<h3>Next question</h3><p class=\"pending-note\">Not yet formulated…</p></article>";
+      turn.innerHTML = "<h2 class=\"turn-title\">" + turnRoman(turnNum) + "</h2>";
       log.appendChild(turn);
       ensureMidScreen(turn);
-      setActiveTurnSection(turn, turn.querySelector(".private-thoughts"));
       return turn;
+    }
+
+    function conversationShell() {
+      const wrap = document.createElement("article");
+      wrap.className = "conversation live-conversation";
+      wrap.innerHTML =
+        "<h3>Conversation</h3><div class=\"conv-lines\"></div>";
+      return wrap;
     }
 
     function privateThoughtsShell() {
@@ -563,20 +853,24 @@
           escapeHtml(name) + "</strong><p class=\"typed\"></p></div>";
       }).join("");
       wrap.innerHTML =
-        "<h3>Private thoughts (each heard the answer alone)</h3>" +
+        "<h3>Observations</h3>" +
         "<div class=\"thought-grid\">" + cards + "</div>";
       return wrap;
     }
 
     async function revealPrivateThoughts(turnEl, event) {
-      const pending = turnEl.querySelector(".private-thoughts.pending");
-      const shell = privateThoughtsShell();
-      if (pending) pending.replaceWith(shell);
+      setAura("thinking");
+      let shell = turnEl.querySelector(".private-thoughts");
+      if (!shell) {
+        shell = privateThoughtsShell();
+        turnEl.appendChild(shell);
+      }
       setActiveTurnSection(turnEl, shell);
-      focusWatchSpeaker("Each considers alone…");
 
       const reflections = event.reflections || {};
-      for (const memberId of councilRoster) {
+      for (let i = 0; i < councilRoster.length; i += 1) {
+        const memberId = councilRoster[i];
+        if (i > 0) await pauseBetweenSpeakers();
         const card = shell.querySelector(".thought[data-speaker=\"" + memberId + "\"]");
         const typed = card && card.querySelector(".typed");
         if (!card || !typed) continue;
@@ -592,25 +886,22 @@
         card.classList.remove("thought-typing");
       }
       pulseAllListening();
-      focusWatchSpeaker("Each considers alone…");
     }
 
     async function applyStreamEvent(turnEl, event) {
       if (event.type === "phase") {
-        setStatus(event.label || "Council is deliberating…", "run");
+        if (event.label) setStatus(event.label, "run");
         if (event.phase === "reflect") {
           pulseAllListening();
-          focusWatchSpeaker("Each considers alone…");
+          setAura("thinking");
         } else if (event.phase === "deliberate") {
           focusWatchSpeaker("The council speaks…");
         } else if (event.phase === "speak" && event.speaker) {
           setCouncilSpeaking(event.speaker);
           focusWatchSpeaker(speakerName(event.speaker) + " speaks…");
+          setAuraForSpeaker(event.speaker);
         } else if (event.phase === "decide") {
           setCouncilSpeaking(null);
-          const forged = turnEl.querySelector(".forged");
-          if (forged) forged.classList.remove("pending");
-          setActiveTurnSection(turnEl, forged);
           focusWatchSpeaker("Formulating your next question…");
         }
         return;
@@ -620,27 +911,28 @@
         return;
       }
       if (event.type === "speak") {
-        const conv = turnEl.querySelector(".live-conversation");
-        const ul = conv ? conv.querySelector("ul") : null;
-        if (!ul) return;
         const entry = (event.conversation || []).slice(-1)[0];
         if (!entry) return;
         const full = entry.text || "";
+        await pauseBetweenSpeakers();
         setCouncilSpeaking(entry.speaker);
+        setAuraForSpeaker(entry.speaker);
         focusWatchSpeaker(getSpeakerLabel(entry.speaker) + " speaks");
         await typeCouncilLine(full);
-        if (conv) {
-          conv.classList.remove("pending");
-          const note = conv.querySelector(".pending-note");
-          if (note) note.remove();
+        let conv = turnEl.querySelector(".live-conversation");
+        if (!conv) {
+          conv = conversationShell();
+          turnEl.appendChild(conv);
         }
-        const li = document.createElement("li");
+        const lines = conv.querySelector(".conv-lines");
+        if (!lines) return;
+        const line = document.createElement("div");
         const who = getSpeakerLabel(entry.speaker);
-        li.className = "line-" + (entry.speaker || "");
-        li.innerHTML =
+        line.className = "conv-line line-" + (entry.speaker || "");
+        line.innerHTML =
           "<strong>" + escapeHtml(who) + "</strong> " +
           "<span class=\"line-text\">" + escapeHtml(full) + "</span>";
-        ul.appendChild(li);
+        lines.appendChild(line);
         setActiveTurnSection(turnEl, conv);
         saveSessionBackup();
         return;
@@ -670,31 +962,37 @@
     }
 
     async function finishTurnShell(turnEl, data) {
+      if (data.question_rephrased) return;
       const title = turnEl.querySelector(".turn-title");
-      if (title) title.textContent = "Turn " + data.turn;
-      const forged = turnEl.querySelector(".forged");
+      if (title) title.textContent = turnRoman(data.turn);
+      if (data.done) {
+        hideCouncilWatch();
+        saveSessionBackup();
+        return;
+      }
+      if (!data.next_question) return;
       const who = data.chosen_asker_display || data.chosen_asker || "Council";
       const forgedEl = document.createElement("article");
       forgedEl.className = "forged";
       forgedEl.innerHTML =
         "<h3>" + escapeHtml(who) + " asks next</h3>" +
-        "<p class=\"q-next typed\"></p>" +
-        "<p class=\"q-why typed\"></p>";
-      if (forged) forged.replaceWith(forgedEl);
+        "<p class=\"q-next typed\"></p>";
+      turnEl.appendChild(forgedEl);
       setActiveTurnSection(turnEl, forgedEl);
       setCouncilSpeaking(data.chosen_asker);
       focusWatchSpeaker(who + " asks next");
       hideCouncilWatch();
       ensureMidScreen(forgedEl);
       await typeInto(forgedEl.querySelector(".q-next"), data.next_question || "");
-      await typeInto(forgedEl.querySelector(".q-why"), data.decision_rationale || "", {
-        speedMs: TYPEWRITER_MS_SECONDARY,
-      });
       saveSessionBackup();
     }
 
     async function finishTurn(data, turnEl) {
-      syncTimer(data.remaining_sec);
+      allowFinalSubmit = false;
+      if (data.transcript_path) {
+        sessionTranscriptFile = transcriptBasename(data.transcript_path);
+      }
+      if (!timerExpired) syncTimer(data.remaining_sec);
       mockMode = !!data.mock_mode;
       renderUsage(data.usage, mockMode);
       if (turnEl) setActiveTurnSection(turnEl, null);
@@ -705,18 +1003,42 @@
         setStatus("Done", "done");
         stopCountdown();
         syncTimer(0);
-        finalBox.classList.remove("hidden");
-        ensureMidScreen(finalBox);
-        finalQ.textContent = "";
-        finalMeta.textContent = "";
-        await typeInto(finalQ, data.final_question || "");
-        if (data.reasoning) {
-          await typeInto(finalMeta, data.reasoning, { speedMs: TYPEWRITER_MS_SECONDARY });
+        timerExpired = true;
+        answerLocked = true;
+        answer.disabled = true;
+        if (data.transcript_path) {
+          sessionTranscriptFile = transcriptBasename(data.transcript_path);
         }
+        if (finalBox) finalBox.classList.remove("hidden");
+        finalQ.textContent = "";
+        await typeInto(finalQ, data.final_question || "");
+        revealDownload();
+        ensureMidScreen(sessionExport || downloadSession);
         hideCouncilWatch();
         sessionId = null;
         currentQuestion = null;
         saveSessionBackup();
+        return;
+      }
+
+      if (data.question_rephrased) {
+        if (turnEl) turnEl.remove();
+        hideCouncilWatch();
+        setStatus("", "");
+        currentQuestion = data.next_question || "";
+        if (!currentQuestion) {
+          throw new Error("No rephrased question returned");
+        }
+        syncAnswerPrompt();
+        await appendFeedQuestion(currentQuestion, true);
+        qa.classList.remove("hidden");
+        if (!timerExpired) {
+          answer.disabled = false;
+        } else if (allowFinalSubmit) {
+          answer.disabled = false;
+        }
+        saveSessionBackup();
+        answer.focus();
         return;
       }
 
@@ -727,21 +1049,33 @@
       syncAnswerPrompt();
       hideCouncilWatch();
       setStatus("", "");
-      if (data.remaining_sec > 0) {
+      allowFinalSubmit = false;
+      if (timerExpired) {
+        answerLocked = true;
+        answer.disabled = true;
+        qa.classList.add("hidden");
+      } else {
+        answerLocked = false;
         answer.disabled = false;
+        qa.classList.remove("hidden");
+        answer.focus();
       }
       saveSessionBackup();
-      answer.focus();
     }
 
     function clear() {
       stopCountdown();
       hideCouncilWatch();
       log.innerHTML = "";
+      if (sessionExport) sessionExport.classList.add("hidden");
       finalBox.classList.add("hidden");
       finalQ.textContent = "";
-      finalMeta.textContent = "";
+      setDownloadReady(false);
+      sessionTranscriptFile = null;
       remainingSec = null;
+      timerExpired = false;
+      allowFinalSubmit = false;
+      answerLocked = false;
       renderTimer();
       renderUsage(null, mockMode);
       refreshUsage();
@@ -749,9 +1083,12 @@
       qa.classList.remove("responding");
       qa.classList.add("hidden");
       answer.value = "";
+      answer.disabled = false;
+      answer.readOnly = false;
       syncAnswerPrompt();
       sessionId = null;
       currentQuestion = null;
+      setAura("idle");
     }
 
     function showInlineError(msg) {
@@ -787,6 +1124,7 @@
         const res = await fetch("/api/session/start", { method: "POST" });
         const data = await readJsonResponse(res);
         sessionId = data.session_id;
+        sessionTranscriptFile = transcriptBasename(data.transcript_path);
         mockMode = !!data.mock_mode;
         currentQuestion = data.question;
         syncAnswerPrompt();
@@ -810,32 +1148,35 @@
     answer.addEventListener("keydown", (ev) => {
       if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing) return;
       ev.preventDefault();
-      if (answer.disabled || !sessionId) return;
+      if (!sessionId || answerLocked) return;
+      if (timerExpired && !allowFinalSubmit) return;
+      if (answer.disabled) return;
       const text = answer.value.trim();
       if (!text) return;
       answerForm.requestSubmit();
     });
 
+    answer.addEventListener("input", () => {
+      if (!timerExpired || allowFinalSubmit) return;
+      answer.value = "";
+    });
+
     answerForm.addEventListener("submit", async (ev) => {
       ev.preventDefault();
-      if (!sessionId) return;
-      if (remainingSec != null && remainingSec <= 0) {
-        handleSessionEnded();
-        return;
-      }
+      if (!sessionId || answerLocked) return;
+      if (timerExpired && !allowFinalSubmit) return;
       const text = answer.value.trim();
       if (!text) return;
       answer.disabled = true;
       showCouncilWatch();
       pulseAllListening();
-      watchSpeaker.textContent = "Each considers alone…";
-      watchLine.textContent = "…";
-      watchLine.classList.add("typing");
+      watchSpeaker.textContent = "";
+      watchLine.textContent = "";
       appendFeedAnswer(text);
       const turnEl = createTurnShell();
       answer.value = "";
-      qa.classList.add("responding");
-      setStatus("Each member considers alone…", "run");
+      qa.classList.add("hidden");
+      setStatus("", "");
       try {
         const res = await fetch(`/api/session/${sessionId}/answer/stream`, {
           method: "POST",
@@ -858,21 +1199,52 @@
           hideCouncilWatch();
           setStatus("Error (check server)", "err");
           showInlineError(msg);
-        }
-      } finally {
-        qa.classList.remove("responding");
-        if (sessionId && remainingSec != null && remainingSec > 0) {
-          answer.disabled = false;
+          if (timerExpired && answer.value.trim()) {
+            allowFinalSubmit = true;
+            answerLocked = false;
+            answer.disabled = false;
+            qa.classList.remove("hidden");
+          } else if (!timerExpired) {
+            answerLocked = false;
+            answer.disabled = false;
+            qa.classList.remove("hidden");
+          }
         }
       }
     });
+
+    if (downloadSession) {
+      downloadSession.addEventListener("click", downloadSessionHtml);
+    }
+
+    function toggleCouncilCard(card) {
+      if (!card) return;
+      const open = card.classList.toggle("is-expanded");
+      card.setAttribute("aria-expanded", open ? "true" : "false");
+    }
+
+    if (councilGrid) {
+      councilGrid.addEventListener("click", (ev) => {
+        const card = ev.target.closest(".council-member");
+        if (!card) return;
+        toggleCouncilCard(card);
+      });
+      councilGrid.addEventListener("keydown", (ev) => {
+        if (ev.key !== "Enter" && ev.key !== " ") return;
+        const card = ev.target.closest(".council-member");
+        if (!card) return;
+        ev.preventDefault();
+        toggleCouncilCard(card);
+      });
+    }
 
     window.addEventListener("beforeunload", saveSessionBackup);
 
     renderTimer();
     renderCouncil(DEFAULT_COUNCIL);
     loadCouncilConfig().then(() => refreshUsage());
-    restoreSessionBackup();
+    clearSessionBackup();
+    startAuraMotion();
   </script>
 </body>
 </html>
