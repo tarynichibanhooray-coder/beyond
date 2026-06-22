@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 
-from agents._client import get_anthropic_client, parse_json_response
+from agents._client import create_message, get_anthropic_client, parse_json_response
 from agents._speak import call_speak, speak_user_block
 from prompt_training.prompts import DELTA_FINAL_SYSTEM, KIERKEGAARD_REFLECT, KIERKEGAARD_SPEAK
 from config import settings
@@ -11,17 +11,15 @@ from models import (
     ConversationLine,
     DeltaFinal,
     KierkegaardReflection,
-    LambdaOutput,
-    PsiOutput,
     TurnContext,
 )
 
 
 def _mock_reflect(ctx: TurnContext) -> KierkegaardReflection:
     return KierkegaardReflection(
-        dread_read="They stand at the edge of freedom and call it confusion.",
-        avoided_choice="They wait for certainty before they will choose themselves.",
-        leap_pressure="The leap is not information; it is commitment in the dark.",
+        dread_read="Something in them is opening toward a life they have not yet claimed.",
+        avoided_choice="They hesitate before a good they already recognize.",
+        leap_pressure="Becoming themselves is nearer than they think—and worth trusting.",
         color_intensity=58,
     )
 
@@ -30,12 +28,12 @@ def _mock_speak(
     ctx: TurnContext,
     conversation: list[ConversationLine],
 ) -> str:
-    n = len(conversation)
-    if n == 2:
-        return "You both speak truly. But the participant is frozen between vision and wound—between what they see and what they carry."
-    if n == 5:
-        return "Enough circling. One of us must ask, and the question must cost them something true."
-    return "The anxiety they feel is not a flaw—it is the sign that they are finally free to choose."
+    if len(conversation) == 2:
+        return (
+            "You both speak truly—and both honor what they carry. "
+            "Still, there is a life here only they can choose to inhabit."
+        )
+    return "What they love is already showing itself; the question is whether they will trust it."
 
 
 def _mock_delta_final(history_summary: str) -> DeltaFinal:
@@ -49,13 +47,17 @@ def _mock_delta_final(history_summary: str) -> DeltaFinal:
 
 
 class DeltaAgent:
+    member_id = "kierkegaard"
+
     async def reflect(self, ctx: TurnContext) -> KierkegaardReflection:
         client = get_anthropic_client()
         if client is None:
             return await asyncio.to_thread(_mock_reflect, ctx)
 
         def _call() -> KierkegaardReflection:
-            msg = client.messages.create(
+            msg = create_message(
+                client,
+                label="kierkegaard.reflect",
                 model=settings.anthropic_model,
                 max_tokens=280,
                 system=KIERKEGAARD_REFLECT,
@@ -79,19 +81,17 @@ class DeltaAgent:
     async def speak(
         self,
         ctx: TurnContext,
-        blake: LambdaOutput,
-        morrison: PsiOutput,
-        kierkegaard: KierkegaardReflection,
+        reflections: dict,
         conversation: list[ConversationLine],
     ) -> str:
         client = get_anthropic_client()
         if client is None:
             return await asyncio.to_thread(_mock_speak, ctx, conversation)
 
-        user = speak_user_block(ctx, "kierkegaard", blake, morrison, kierkegaard, conversation)
+        user = speak_user_block(ctx, self.member_id, reflections, conversation)
 
         def _call() -> str:
-            return call_speak(KIERKEGAARD_SPEAK, user)
+            return call_speak(KIERKEGAARD_SPEAK, user, label="kierkegaard.speak")
 
         return await asyncio.to_thread(_call)
 
@@ -101,7 +101,9 @@ class DeltaAgent:
             return await asyncio.to_thread(_mock_delta_final, history_snippet)
 
         def _call() -> DeltaFinal:
-            msg = client.messages.create(
+            msg = create_message(
+                client,
+                label="kierkegaard.final",
                 model=settings.anthropic_model,
                 max_tokens=400,
                 system=DELTA_FINAL_SYSTEM,

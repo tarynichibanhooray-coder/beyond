@@ -1,7 +1,5 @@
+from prompt_training.core import COUNCIL_FRAME
 from prompt_training.prompts import (
-    BLAKE_SPEAK,
-    COUNCIL_DECIDE,
-    COUNCIL_FRAME,
     DELTA_FINAL_SYSTEM,
     KIERKEGAARD_REFLECT,
     KIERKEGAARD_SPEAK,

@@ -2,7 +2,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-AskerName = Literal["blake", "morrison", "kierkegaard"]
+AskerName = Literal["arabi", "blake", "morrison", "kierkegaard"]
+
+
+class ArabiOutput(BaseModel):
+    disclosure_read: str
+    barzakh_note: str
+    mirror_read: str
+    color_intensity: int = Field(ge=0, le=100)
 
 
 class LambdaOutput(BaseModel):
@@ -15,7 +22,6 @@ class LambdaOutput(BaseModel):
 class PsiOutput(BaseModel):
     witness_read: str
     carried_story: str
-    body_signal_note: str
     color_intensity: int = Field(ge=0, le=100)
 
 
@@ -38,9 +44,7 @@ class CouncilDecision(BaseModel):
 
 
 class CouncilTurnResult(BaseModel):
-    blake_reflection: LambdaOutput
-    morrison_reflection: PsiOutput
-    kierkegaard_reflection: KierkegaardReflection
+    reflections: dict[str, dict]
     conversation: list[ConversationLine]
     decision: CouncilDecision
 

@@ -12,11 +12,16 @@ class Settings(BaseSettings):
     )
 
     anthropic_api_key: str = ""
-    anthropic_model: str = "claude-3-5-sonnet-20241022"
+    anthropic_model: str = "claude-sonnet-4-6"
     mock_mode: bool = True
+    prompt_cache: bool = True
 
     session_duration_seconds: int = 180
     transcript_dir: Path = Field(default=Path("transcripts"))
+    # 0 = unlimited; when set, UI and logs show remaining = budget − server used tokens
+    token_budget: int = 0
+    # Comma-separated exactly 3 council member ids (arabi, blake, morrison, kierkegaard)
+    council_roster: str = "arabi,morrison,kierkegaard"
 
 
 settings = Settings()

@@ -1,16 +1,30 @@
 # Prompt Training — Council AI Instructions
 
 This directory holds **all prompt-training documents** that govern how the council
-(Blake, Morrison, Kierkegaard) listen, speak, and forge questions.
+listen, speak, and forge questions.
 
 Edit these files to change council behavior. Agent code in `agents/` imports from here.
+
+## Active roster
+
+Default council (3 at a time): **Ibn Arabi, Toni Morrison, Søren Kierkegaard**.
+
+Set `COUNCIL_ROSTER` in `.env` to rotate members, e.g. `blake,morrison,kierkegaard`.
+Available ids: `arabi`, `blake` (backup), `morrison`, `kierkegaard`.
 
 ## Files
 
 | File | Purpose |
 |------|---------|
-| `core.py` | Installation premise, philosophically therapeutic core, shared council frame |
+| `core.py` | Installation premise, philosophically therapeutic core, per-member hungers, tensions |
 | `prompts.py` | Per-agent reflect, speak, decide, and final-question system prompts |
+| `system_blocks.py` | Cached prefix builder (roster-aware) |
+
+## Turn flow (per participant response)
+
+1. **Private reflection** — each roster member thinks alone (parallel).
+2. **One spoken turn each** — sequential. They may **disagree**; see `COUNCIL_TENSIONS` in `core.py`.
+3. **Formulate question** — the council chooses who asks next and forges the question.
 
 ## Core intent
 

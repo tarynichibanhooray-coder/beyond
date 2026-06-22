@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import Any
 
 from agents.council import AgentCouncil, DISPLAY_NAMES
+from agents.roster import parse_roster
 from agents.delta_agent import DeltaAgent
 from config import settings
 from models import CouncilTurnResult, DeltaFinal, TurnContext
 from utils.logger import get_logger
 from utils.speech_to_text import mock_transcript_for_turn
+from utils.usage import UsageLedger, bind_usage_ledger
 
 log = get_logger(__name__)
 
@@ -23,9 +25,11 @@ class SessionManager:
     conversation_history: list[dict] = field(default_factory=list)
     heart_rate_data: list[tuple[float, float]] = field(default_factory=list)
     last_transcript_path: Path | None = None
+    usage: UsageLedger = field(default_factory=UsageLedger)
 
     def __post_init__(self) -> None:
-        self._council = AgentCouncil()
+        self.council_roster = parse_roster()
+        self._council = AgentCouncil(self.council_roster)
         self._delta = DeltaAgent()
         self._start_monotonic: float | None = None
 
@@ -41,8 +45,12 @@ class SessionManager:
         self._start_monotonic = time.monotonic()
         self.conversation_history.clear()
         self.heart_rate_data.clear()
+        self.usage = UsageLedger()
         settings.transcript_dir.mkdir(parents=True, exist_ok=True)
-        log.info("Session started (%ss)", self.timer_seconds)
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        self.last_transcript_path = settings.transcript_dir / f"session-{stamp}.json"
+        self._save_transcript()
+        log.info("Session started (%ss); transcript %s", self.timer_seconds, self.last_transcript_path)
 
     async def run_turn(
         self,
@@ -50,47 +58,70 @@ class SessionManager:
         transcript: str,
         bpm_window: list[tuple[float, float]],
     ) -> CouncilTurnResult:
+        result: CouncilTurnResult | None = None
+        async for event in self.run_turn_events(question, transcript, bpm_window):
+            if event["type"] == "complete":
+                result = CouncilTurnResult.model_validate(event["result"])
+        if result is None:
+            raise RuntimeError("Turn ended without a result")
+        return result
+
+    async def run_turn_events(
+        self,
+        question: str,
+        transcript: str,
+        bpm_window: list[tuple[float, float]],
+    ):
         ctx = TurnContext(
             question=question,
             transcript=transcript,
             bpm_window=bpm_window,
         )
         history_snippet = json.dumps(self.conversation_history[-4:], default=str)
-        result = await self._council.run_turn(ctx, history_snippet)
-
-        self.conversation_history.append(
-            {
-                "question": question,
-                "transcript": transcript,
-                "blake_reflection": result.blake_reflection.model_dump(),
-                "morrison_reflection": result.morrison_reflection.model_dump(),
-                "kierkegaard_reflection": result.kierkegaard_reflection.model_dump(),
-                "conversation": [c.model_dump() for c in result.conversation],
-                "chosen_asker": result.decision.chosen_asker,
-                "next_question": result.decision.next_question,
-                "decision_rationale": result.decision.rationale,
-            }
-        )
-        log.info(
-            "Turn complete | %s asks: %s",
-            DISPLAY_NAMES[result.decision.chosen_asker],
-            result.decision.next_question[:80],
-        )
-        return result
+        with bind_usage_ledger(self.usage):
+            async for event in self._council.run_turn_events(ctx, history_snippet):
+                if event["type"] == "complete":
+                    result = CouncilTurnResult.model_validate(event["result"])
+                    self.conversation_history.append(
+                        {
+                            "question": question,
+                            "transcript": transcript,
+                            "council_roster": self.council_roster,
+                            "reflections": result.reflections,
+                            "conversation": [c.model_dump() for c in result.conversation],
+                            "chosen_asker": result.decision.chosen_asker,
+                            "next_question": result.decision.next_question,
+                            "decision_rationale": result.decision.rationale,
+                        }
+                    )
+                    self._save_transcript()
+                    log.info("Transcript saved (turn %s): %s", len(self.conversation_history), self.last_transcript_path)
+                    log.info(
+                        "Turn complete | %s asks: %s",
+                        DISPLAY_NAMES.get(
+                            result.decision.chosen_asker, result.decision.chosen_asker
+                        ),
+                        result.decision.next_question[:80],
+                    )
+                yield event
 
     async def end_session(self) -> DeltaFinal:
         summary = json.dumps(self.conversation_history, default=str)
-        final = await self._delta.final_question(summary)
+        with bind_usage_ledger(self.usage):
+            final = await self._delta.final_question(summary)
         self.conversation_history.append(
             {"final_question": final.model_dump()},
         )
-        self.last_transcript_path = self._save_transcript()
+        self._save_transcript()
         log.info("Session ended; transcript %s", self.last_transcript_path)
         return final
 
     def _save_transcript(self) -> Path:
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        path = settings.transcript_dir / f"session-{stamp}.json"
+        if self.last_transcript_path is None:
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            self.last_transcript_path = settings.transcript_dir / f"session-{stamp}.json"
+        path = self.last_transcript_path
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(self.conversation_history, indent=2, default=str))
         return path
 
@@ -108,7 +139,7 @@ async def iter_demo_events() -> AsyncIterator[dict[str, Any]]:
     while sm.remaining() > 0 and turn_idx < 3:
         transcript = mock_transcript_for_turn(turn_idx)
         t0 = sm.elapsed()
-        bpm_window = [(t0 + i * 0.5, 72.0 + i) for i in range(5)]
+        bpm_window = []
         result = await sm.run_turn(question, transcript, bpm_window)
         yield {
             "type": "turn",
