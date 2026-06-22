@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Before — demo</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
@@ -51,64 +50,70 @@
     <header class="head">
       <div class="head-metrics-fixed">
         <div class="head-metrics-cluster">
-          <span id="timer" class="head-clock idle" aria-live="polite" aria-label="Time remaining">--:--</span>
-          <div id="usage" class="token-meter idle" aria-live="polite" aria-label="Token usage">
+          <span id="timer" class="head-clock idle" aria-live="polite" data-i18n-aria="timeRemaining">--:--</span>
+          <div id="usage" class="token-meter idle" aria-live="polite" data-i18n-aria="tokenUsage">
             <div class="token-row">
-              <span class="tok-label">in</span>
+              <span class="tok-label" data-i18n="tokIn">in</span>
               <span id="tok-in" class="tok-in">0</span>
               <span class="tok-sep">·</span>
-              <span class="tok-label">out</span>
+              <span class="tok-label" data-i18n="tokOut">out</span>
               <span id="tok-out" class="tok-out">0</span>
             </div>
             <div class="token-row">
-              <span class="tok-label">used</span>
+              <span class="tok-label" data-i18n="tokUsed">used</span>
               <span id="tok-used" class="tok-used">0</span>
               <span class="tok-sep">·</span>
-              <span class="tok-label">rem</span>
+              <span class="tok-label" data-i18n="tokRem">rem</span>
               <span id="tok-rem" class="tok-rem">∞</span>
             </div>
           </div>
         </div>
       </div>
-      <h1>In This Time Before</h1>
+      <h1 data-i18n="title">In This Time Before</h1>
     </header>
 
-    <section class="council-intro" id="councilIntro" aria-label="The council">
+    <section class="council-intro" id="councilIntro" data-i18n-aria="councilIntro" aria-label="The council">
       <div class="council-grid" id="councilGrid"></div>
     </section>
 
     <section class="controls">
-      <button type="button" id="run" class="btn">Start session</button>
-      <span id="status" class="status idle">Idle</span>
+      <button type="button" id="run" class="btn" data-i18n="startSession">Start session</button>
+      <span id="status" class="status idle" data-i18n="idle">Idle</span>
     </section>
 
     <section id="log" class="log" aria-live="polite"></section>
 
-    <section id="councilWatch" class="council-watch hidden" aria-live="polite" aria-label="Council speaking">
-      <div class="watch-members" id="watchMembers"></div>
-      <div class="watch-speech">
-        <span id="watchSpeaker" class="watch-speaker">Council</span>
-        <p id="watchLine" class="watch-line"></p>
-      </div>
-    </section>
-
     <section id="qa" class="qa hidden">
       <form id="answerForm" class="abox">
-        <label class="acap" for="answer">Response</label>
-        <textarea id="answer" rows="3" placeholder="Type your response…" autocomplete="off"></textarea>
+        <label class="acap" for="answer" data-i18n="response">Response</label>
+        <textarea id="answer" rows="3" data-i18n-placeholder="responsePlaceholder" placeholder="Type your response…" autocomplete="off"></textarea>
       </form>
     </section>
 
     <section id="final" class="final hidden">
-      <h2>Your final question</h2>
+      <h2 data-i18n="finalQuestion">Your final question</h2>
       <p id="final-q" class="final-q"></p>
     </section>
 
     <section id="sessionExport" class="session-export hidden">
-      <button type="button" id="downloadSession" class="btn download-btn">Download conversation</button>
+      <button type="button" id="downloadSession" class="btn download-btn" data-i18n="downloadConversation">Download conversation</button>
     </section>
   </main>
+  <script src="/static/i18n.js"></script>
   <script>
+    function t(key, vars) {
+      return BeforeI18n.t(key, vars);
+    }
+
+    function localizeCouncilMembers(members) {
+      return BeforeI18n.localizeCouncilMembers(members);
+    }
+
+    function apiFetch(url, opts) {
+      opts = opts || {};
+      opts.headers = Object.assign({}, BeforeI18n.apiHeaders(), opts.headers || {});
+      return fetch(url, opts);
+    }
     const run = document.getElementById("run");
     const qa = document.getElementById("qa");
     const answerForm = document.getElementById("answerForm");
@@ -118,10 +123,6 @@
     const log = document.getElementById("log");
     const councilIntro = document.getElementById("councilIntro");
     const councilGrid = document.getElementById("councilGrid");
-    const watchMembers = document.getElementById("watchMembers");
-    const councilWatch = document.getElementById("councilWatch");
-    const watchSpeaker = document.getElementById("watchSpeaker");
-    const watchLine = document.getElementById("watchLine");
     const finalBox = document.getElementById("final");
     const sessionExport = document.getElementById("sessionExport");
     const finalQ = document.getElementById("final-q");
@@ -150,6 +151,7 @@
     let activeSpeaker = null;
     let councilMembers = [];
     let councilRoster = [];
+    let lastUsageBundle = null;
 
     function stopTyping(el) {
       if (!el) return;
@@ -163,6 +165,10 @@
 
     function stopAllTyping() {
       typewriterHandles.forEach((_id, el) => stopTyping(el));
+    }
+
+    function waitMs(ms) {
+      return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
     function typeInto(el, text, opts) {
@@ -193,12 +199,6 @@
       morrison: "witness_read",
       kierkegaard: "dread_read",
     };
-
-    function watchShortName(member) {
-      if (member.id === "arabi") return "Arabi";
-      const parts = member.name.trim().split(/\s+/);
-      return parts[parts.length - 1];
-    }
 
     function speakerLabel(memberId) {
       const m = councilMembers.find((x) => x.id === memberId);
@@ -387,9 +387,9 @@
     }
 
     function renderCouncil(members) {
-      councilMembers = members || [];
+      councilMembers = localizeCouncilMembers(members || []);
       councilRoster = councilMembers.map((m) => m.id);
-      if (!councilGrid || !watchMembers) return;
+      if (!councilGrid) return;
       councilGrid.innerHTML = councilMembers.map((m) =>
         "<article class=\"council-member " + m.css_class + "\" data-speaker=\"" + m.id + "\" " +
         "tabindex=\"0\" role=\"button\" aria-expanded=\"false\">" +
@@ -403,32 +403,16 @@
         "<p class=\"years\">" + escapeHtml(m.years) + "</p>" +
         "</div></article>"
       ).join("");
-      watchMembers.innerHTML = councilMembers.map((m) =>
-        "<div class=\"watch-member " + m.css_class + "\" data-speaker=\"" + m.id + "\">" +
-        "<span class=\"glyph\">" + escapeHtml(m.glyph) + "</span>" +
-        "<span class=\"name\">" + escapeHtml(watchShortName(m)) + "</span>" +
-        "<span class=\"speak-ring\" aria-hidden=\"true\"></span></div>"
-      ).join("");
     }
 
     async function loadCouncilConfig() {
       try {
-        const res = await fetch("/api/council");
+        const res = await apiFetch("/api/council");
         const data = await readJsonResponse(res);
         renderCouncil(data.members && data.members.length ? data.members : DEFAULT_COUNCIL);
       } catch {
         renderCouncil(DEFAULT_COUNCIL);
       }
-    }
-
-    function typeCouncilLine(text, speedMs) {
-      ensureMidScreen(councilWatch);
-      return typeInto(watchLine, text, { speedMs: speedMs });
-    }
-
-    function ensureMidScreen(el) {
-      if (!el) return;
-      el.scrollIntoView({ behavior: "auto", block: "center", inline: "nearest" });
     }
 
     function transcriptBasename(path) {
@@ -445,7 +429,6 @@
     function revealDownload() {
       if (sessionExport) sessionExport.classList.remove("hidden");
       setDownloadReady(!!sessionTranscriptFile);
-      ensureMidScreen(sessionExport || downloadSession);
     }
 
     async function syncSessionCheckpoint() {
@@ -487,7 +470,7 @@
       downloadSession.disabled = true;
       try {
         await syncSessionCheckpoint();
-        const res = await fetch(
+        const res = await apiFetch(
           "/api/transcript/" + encodeURIComponent(sessionTranscriptFile) + "/export"
         );
         if (!res.ok) {
@@ -510,7 +493,7 @@
         a.remove();
         URL.revokeObjectURL(url);
       } catch (e) {
-        setStatus("Could not download session", "err");
+        setStatus(t("errorDownload"), "err");
       } finally {
         downloadSession.disabled = false;
       }
@@ -576,26 +559,20 @@
       }
     }
 
-    function scrollToEl(el, block) {
-      if (!el) return;
-      el.scrollIntoView({ behavior: "auto", block: block || "nearest" });
-    }
-
     function syncAnswerPrompt() {
       if (!currentQuestion) {
         answer.removeAttribute("aria-label");
         return;
       }
-      answer.setAttribute("aria-label", "Response to: " + currentQuestion);
+      answer.setAttribute("aria-label", t("responseTo", { question: currentQuestion }));
     }
 
     async function appendFeedQuestion(text, animate) {
       const block = document.createElement("article");
       block.className = "feed-question";
-      block.innerHTML = "<h3>Question</h3><p class=\"qtext\"></p>";
+      block.innerHTML = "<h3>" + escapeHtml(t("question")) + "</h3><p class=\"qtext\"></p>";
       log.appendChild(block);
       const el = block.querySelector(".qtext");
-      ensureMidScreen(block);
       if (animate) {
         await typeInto(el, text);
       } else {
@@ -605,12 +582,11 @@
       return block;
     }
 
-    function appendFeedAnswer(text) {
+    async function appendFeedAnswer(text) {
       const el = document.createElement("p");
       el.className = "feed-answer";
       el.textContent = spaceEmDashes(text);
       log.appendChild(el);
-      ensureMidScreen(el);
       saveSessionBackup();
     }
 
@@ -621,35 +597,25 @@
         el.classList.toggle("speaking", !!speaker && !isAll && el.dataset.speaker === speaker);
         el.classList.toggle("listening", isAll);
       });
-      document.querySelectorAll(".watch-member[data-speaker]").forEach((el) => {
-        el.classList.toggle("active", !!speaker && !isAll && el.dataset.speaker === speaker);
-        el.classList.toggle("listening", isAll);
-      });
-      if (speaker && speakerName(speaker)) {
-        watchSpeaker.textContent = speakerName(speaker) + " speaks";
-      } else if (isAll) {
-        watchSpeaker.textContent = "Council";
-      } else {
-        watchSpeaker.textContent = "Council";
-      }
     }
 
-    function showCouncilWatch() {
-      councilWatch.classList.remove("hidden");
-      councilIntro.classList.add("session-active");
-      ensureMidScreen(councilWatch);
-    }
-
-    function hideCouncilWatch() {
-      councilWatch.classList.add("hidden");
-      councilIntro.classList.remove("session-active");
+    function resetCouncilHighlights() {
       setCouncilSpeaking(null);
       setAura("idle");
-      document.querySelectorAll(".council-member[data-speaker], .watch-member[data-speaker]").forEach((el) => {
-        el.classList.remove("speaking", "listening", "active");
+      document.querySelectorAll(".council-member[data-speaker]").forEach((el) => {
+        el.classList.remove("speaking", "listening");
       });
       stopAllTyping();
-      watchLine.textContent = "";
+    }
+
+    function beginDeliberation() {
+      councilIntro.classList.add("session-active");
+      pulseAllListening();
+    }
+
+    function endDeliberation() {
+      councilIntro.classList.remove("session-active");
+      resetCouncilHighlights();
     }
 
     function pulseAllListening() {
@@ -668,47 +634,68 @@
     }
 
     function formatTokens(n) {
-      if (n == null) return "∞";
-      return Number(n).toLocaleString("en-US");
+      return BeforeI18n.formatNumber(n);
+    }
+
+    function isTokensDepletedError(msg) {
+      if (!msg) return false;
+      const lower = String(msg).toLowerCase();
+      return lower.includes("depleted") || lower.includes("agotado");
+    }
+
+    function formatDailyUsed(usage) {
+      const daily = usage && usage.daily ? usage.daily : null;
+      if (!daily) return "0";
+      return formatTokens(daily.used_tokens || 0);
+    }
+
+    function formatDailyRemaining(usage) {
+      const daily = usage && usage.daily ? usage.daily : null;
+      const budget = (usage && usage.token_budget) || 0;
+      if (daily && daily.remaining_tokens != null) {
+        return formatTokens(daily.remaining_tokens);
+      }
+      if (budget > 0 && daily && daily.depleted) {
+        return "0";
+      }
+      return "—";
     }
 
     function renderUsage(usage, isMock) {
+      if (usage) lastUsageBundle = usage;
+      const bundle = usage || lastUsageBundle;
       usageEl.classList.remove("mock", "idle", "live");
       if (isMock) {
         usageEl.classList.add("mock", "idle");
         tokIn.textContent = "—";
         tokOut.textContent = "—";
-        tokUsed.textContent = "mock";
+        tokUsed.textContent = t("mock");
         tokRem.textContent = "—";
         return;
       }
-      const session = usage && usage.session ? usage.session : null;
-      const server = usage && usage.server ? usage.server : null;
-      const activeSession = session && (session.api_calls > 0 || session.used_tokens > 0);
-      const src = activeSession ? session : (server || session);
+      const session = bundle && bundle.session ? bundle.session : null;
+      // in/out = this session; used/rem = daily totals from API.
+      const src = sessionId && session ? session : null;
+
       if (!src) {
         usageEl.classList.add("idle");
         tokIn.textContent = "0";
         tokOut.textContent = "0";
-        tokUsed.textContent = "0";
-        tokRem.textContent = formatTokens(
-          usage && usage.token_budget ? usage.token_budget : null
-        );
+        tokUsed.textContent = formatDailyUsed(bundle);
+        tokRem.textContent = formatDailyRemaining(bundle);
         return;
       }
-      usageEl.classList.add("live");
+
+      const hasUsage = src.api_calls > 0 || (src.used_tokens || 0) > 0;
+      usageEl.classList.add(hasUsage ? "live" : "idle");
+
       const inTok = src.billable_input_tokens != null
         ? src.billable_input_tokens
         : src.input_tokens || 0;
       tokIn.textContent = formatTokens(inTok);
       tokOut.textContent = formatTokens(src.output_tokens || 0);
-      tokUsed.textContent = formatTokens(
-        src.used_tokens != null ? src.used_tokens : src.total_tokens || 0
-      );
-      const rem = server && server.remaining_tokens != null
-        ? server.remaining_tokens
-        : src.remaining_tokens;
-      tokRem.textContent = formatTokens(rem);
+      tokUsed.textContent = formatDailyUsed(bundle);
+      tokRem.textContent = formatDailyRemaining(bundle);
     }
 
     async function refreshUsage() {
@@ -716,13 +703,14 @@
         const url = sessionId
           ? "/api/usage?session_id=" + encodeURIComponent(sessionId)
           : "/api/usage";
-        const res = await fetch(url);
+        const res = await apiFetch(url);
         const data = await readJsonResponse(res);
         mockMode = !!data.mock_mode;
         renderUsage(
           {
             session: data.session || null,
             server: data.server,
+            daily: data.daily,
             token_budget: data.token_budget,
           },
           mockMode
@@ -732,10 +720,14 @@
       }
     }
 
+    async function loadUsageForSession() {
+      await refreshUsage();
+    }
+
     function handleSessionEnded() {
       stopCountdown();
       syncTimer(0);
-      hideCouncilWatch();
+      endDeliberation();
       sessionId = null;
       currentQuestion = null;
       qa.classList.add("hidden");
@@ -811,13 +803,6 @@
       });
     }
 
-    function focusWatchSpeaker(label) {
-      watchSpeaker.textContent = label || "Council";
-      stopTyping(watchLine);
-      watchLine.textContent = "";
-      watchLine.classList.remove("typing");
-    }
-
     function turnRoman(n) {
       const roman = ["", "I", "II", "III"];
       const idx = Number(n);
@@ -830,7 +815,6 @@
       turn.className = "turn";
       turn.innerHTML = "<h2 class=\"turn-title\">" + turnRoman(turnNum) + "</h2>";
       log.appendChild(turn);
-      ensureMidScreen(turn);
       return turn;
     }
 
@@ -838,24 +822,31 @@
       const wrap = document.createElement("article");
       wrap.className = "conversation live-conversation";
       wrap.innerHTML =
-        "<h3>Conversation</h3><div class=\"conv-lines\"></div>";
+        "<h3>" + escapeHtml(t("conversation")) + "</h3><div class=\"conv-lines\"></div>";
       return wrap;
     }
 
     function privateThoughtsShell() {
       const wrap = document.createElement("article");
       wrap.className = "private-thoughts";
-      const cards = councilRoster.map((id) => {
-        const m = councilMembers.find((x) => x.id === id);
-        const cls = m ? m.css_class : id;
-        const name = m ? m.name : id;
-        return "<div class=\"thought " + cls + "\" data-speaker=\"" + id + "\"><strong>" +
-          escapeHtml(name) + "</strong><p class=\"typed\"></p></div>";
-      }).join("");
       wrap.innerHTML =
-        "<h3>Observations</h3>" +
-        "<div class=\"thought-grid\">" + cards + "</div>";
+        "<h3>" + escapeHtml(t("observations")) + "</h3>" +
+        "<div class=\"thought-grid\"></div>";
       return wrap;
+    }
+
+    function appendThoughtCard(shell, memberId) {
+      const m = councilMembers.find((x) => x.id === memberId);
+      const cls = m ? m.css_class : memberId;
+      const name = m ? m.name : memberId;
+      const grid = shell.querySelector(".thought-grid");
+      const card = document.createElement("div");
+      card.className = "thought " + cls;
+      card.dataset.speaker = memberId;
+      card.innerHTML =
+        "<strong>" + escapeHtml(name) + "</strong><p class=\"typed\"></p>";
+      grid.appendChild(card);
+      return { card: card, typed: card.querySelector(".typed") };
     }
 
     async function revealPrivateThoughts(turnEl, event) {
@@ -864,24 +855,23 @@
       if (!shell) {
         shell = privateThoughtsShell();
         turnEl.appendChild(shell);
+        setActiveTurnSection(turnEl, shell);
       }
-      setActiveTurnSection(turnEl, shell);
 
       const reflections = event.reflections || {};
       for (let i = 0; i < councilRoster.length; i += 1) {
         const memberId = councilRoster[i];
         if (i > 0) await pauseBetweenSpeakers();
-        const card = shell.querySelector(".thought[data-speaker=\"" + memberId + "\"]");
-        const typed = card && card.querySelector(".typed");
-        if (!card || !typed) continue;
         const field = REFLECTION_FIELD[memberId];
         const fromMap = reflections[memberId] || {};
         const fromLegacy = event[memberId + "_reflection"] || {};
         const text = (field && (fromMap[field] || fromLegacy[field])) || "";
+        const added = appendThoughtCard(shell, memberId);
+        const card = added.card;
+        const typed = added.typed;
+        if (!card || !typed) continue;
         card.classList.add("thought-typing");
         setCouncilSpeaking(memberId);
-        focusWatchSpeaker(speakerName(memberId) + " thinks…");
-        ensureMidScreen(card);
         await typeInto(typed, text);
         card.classList.remove("thought-typing");
       }
@@ -890,19 +880,16 @@
 
     async function applyStreamEvent(turnEl, event) {
       if (event.type === "phase") {
-        if (event.label) setStatus(event.label, "run");
         if (event.phase === "reflect") {
           pulseAllListening();
           setAura("thinking");
         } else if (event.phase === "deliberate") {
-          focusWatchSpeaker("The council speaks…");
+          pulseAllListening();
         } else if (event.phase === "speak" && event.speaker) {
           setCouncilSpeaking(event.speaker);
-          focusWatchSpeaker(speakerName(event.speaker) + " speaks…");
           setAuraForSpeaker(event.speaker);
         } else if (event.phase === "decide") {
           setCouncilSpeaking(null);
-          focusWatchSpeaker("Formulating your next question…");
         }
         return;
       }
@@ -914,26 +901,35 @@
         const entry = (event.conversation || []).slice(-1)[0];
         if (!entry) return;
         const full = entry.text || "";
-        await pauseBetweenSpeakers();
-        setCouncilSpeaking(entry.speaker);
-        setAuraForSpeaker(entry.speaker);
-        focusWatchSpeaker(getSpeakerLabel(entry.speaker) + " speaks");
-        await typeCouncilLine(full);
+
         let conv = turnEl.querySelector(".live-conversation");
         if (!conv) {
           conv = conversationShell();
           turnEl.appendChild(conv);
         }
+        setActiveTurnSection(turnEl, conv);
         const lines = conv.querySelector(".conv-lines");
         if (!lines) return;
+
+        const hadPriorSpeech = lines.children.length > 0;
+        const hadObservations = !!turnEl.querySelector(".private-thoughts .thought");
+        if (hadPriorSpeech || hadObservations) {
+          await pauseBetweenSpeakers();
+        }
+
+        setCouncilSpeaking(entry.speaker);
+        setAuraForSpeaker(entry.speaker);
+
         const line = document.createElement("div");
         const who = getSpeakerLabel(entry.speaker);
-        line.className = "conv-line line-" + (entry.speaker || "");
+        line.className = "conv-line line-speaking line-" + (entry.speaker || "");
         line.innerHTML =
           "<strong>" + escapeHtml(who) + "</strong> " +
-          "<span class=\"line-text\">" + escapeHtml(full) + "</span>";
+          "<span class=\"line-text\"></span>";
         lines.appendChild(line);
-        setActiveTurnSection(turnEl, conv);
+        const textEl = line.querySelector(".line-text");
+        await typeInto(textEl, full);
+        line.classList.remove("line-speaking");
         saveSessionBackup();
         return;
       }
@@ -966,24 +962,25 @@
       const title = turnEl.querySelector(".turn-title");
       if (title) title.textContent = turnRoman(data.turn);
       if (data.done) {
-        hideCouncilWatch();
+        endDeliberation();
         saveSessionBackup();
         return;
       }
       if (!data.next_question) return;
-      const who = data.chosen_asker_display || data.chosen_asker || "Council";
+      const who = data.chosen_asker_display || data.chosen_asker || t("council");
+      await pauseBetweenSpeakers();
       const forgedEl = document.createElement("article");
       forgedEl.className = "forged";
       forgedEl.innerHTML =
-        "<h3>" + escapeHtml(who) + " asks next</h3>" +
+        "<h3>" + escapeHtml(t("asksNext", { name: who })) + "</h3>" +
         "<p class=\"q-next typed\"></p>";
       turnEl.appendChild(forgedEl);
       setActiveTurnSection(turnEl, forgedEl);
       setCouncilSpeaking(data.chosen_asker);
-      focusWatchSpeaker(who + " asks next");
-      hideCouncilWatch();
-      ensureMidScreen(forgedEl);
-      await typeInto(forgedEl.querySelector(".q-next"), data.next_question || "");
+      await typeInto(
+        forgedEl.querySelector(".q-next"),
+        data.next_question || ""
+      );
       saveSessionBackup();
     }
 
@@ -1000,7 +997,7 @@
       if (data.done) {
         qa.classList.add("hidden");
         run.disabled = false;
-        setStatus("Done", "done");
+        setStatus(t("done"), "done");
         stopCountdown();
         syncTimer(0);
         timerExpired = true;
@@ -1011,10 +1008,10 @@
         }
         if (finalBox) finalBox.classList.remove("hidden");
         finalQ.textContent = "";
+        await pauseBetweenSpeakers();
         await typeInto(finalQ, data.final_question || "");
         revealDownload();
-        ensureMidScreen(sessionExport || downloadSession);
-        hideCouncilWatch();
+        endDeliberation();
         sessionId = null;
         currentQuestion = null;
         saveSessionBackup();
@@ -1023,13 +1020,14 @@
 
       if (data.question_rephrased) {
         if (turnEl) turnEl.remove();
-        hideCouncilWatch();
+        endDeliberation();
         setStatus("", "");
         currentQuestion = data.next_question || "";
         if (!currentQuestion) {
           throw new Error("No rephrased question returned");
         }
         syncAnswerPrompt();
+        await pauseBetweenSpeakers();
         await appendFeedQuestion(currentQuestion, true);
         qa.classList.remove("hidden");
         if (!timerExpired) {
@@ -1047,7 +1045,7 @@
         throw new Error("No next question returned by council");
       }
       syncAnswerPrompt();
-      hideCouncilWatch();
+      endDeliberation();
       setStatus("", "");
       allowFinalSubmit = false;
       if (timerExpired) {
@@ -1065,7 +1063,7 @@
 
     function clear() {
       stopCountdown();
-      hideCouncilWatch();
+      endDeliberation();
       log.innerHTML = "";
       if (sessionExport) sessionExport.classList.add("hidden");
       finalBox.classList.add("hidden");
@@ -1077,7 +1075,6 @@
       allowFinalSubmit = false;
       answerLocked = false;
       renderTimer();
-      renderUsage(null, mockMode);
       refreshUsage();
       councilIntro.classList.remove("session-active");
       qa.classList.remove("responding");
@@ -1094,7 +1091,7 @@
     function showInlineError(msg) {
       const turn = document.createElement("div");
       turn.className = "turn";
-      turn.innerHTML = "<p class=\"a\"><strong>Error</strong> " + escapeHtml(msg) + "</p>";
+      turn.innerHTML = "<p class=\"a\"><strong>" + escapeHtml(t("error")) + "</strong> " + escapeHtml(msg) + "</p>";
       log.appendChild(turn);
     }
 
@@ -1119,9 +1116,9 @@
     run.addEventListener("click", async () => {
       clear();
       run.disabled = true;
-      setStatus("Starting…", "run");
+      setStatus(t("starting"), "run");
       try {
-        const res = await fetch("/api/session/start", { method: "POST" });
+        const res = await apiFetch("/api/session/start", { method: "POST" });
         const data = await readJsonResponse(res);
         sessionId = data.session_id;
         sessionTranscriptFile = transcriptBasename(data.transcript_path);
@@ -1134,14 +1131,22 @@
         await appendFeedQuestion(currentQuestion, true);
         qa.classList.remove("hidden");
         councilIntro.classList.add("session-active");
-        renderUsage(data.usage, mockMode);
+        if (data.usage) {
+          renderUsage(data.usage, mockMode);
+        }
+        await loadUsageForSession();
         setStatus("", "");
         answer.disabled = false;
         saveSessionBackup();
         answer.focus();
       } catch (e) {
         run.disabled = false;
-        setStatus("Error (server not running?)", "err");
+        const msg = e && e.message ? e.message : "";
+        if (isTokensDepletedError(msg)) {
+          setStatus(t("tokensDepleted"), "err");
+        } else {
+          setStatus(t("errorServer"), "err");
+        }
       }
     });
 
@@ -1168,17 +1173,14 @@
       const text = answer.value.trim();
       if (!text) return;
       answer.disabled = true;
-      showCouncilWatch();
-      pulseAllListening();
-      watchSpeaker.textContent = "";
-      watchLine.textContent = "";
-      appendFeedAnswer(text);
+      beginDeliberation();
+      await appendFeedAnswer(text);
       const turnEl = createTurnShell();
       answer.value = "";
       qa.classList.add("hidden");
       setStatus("", "");
       try {
-        const res = await fetch(`/api/session/${sessionId}/answer/stream`, {
+        const res = await apiFetch(`/api/session/${sessionId}/answer/stream`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ transcript: text }),
@@ -1195,9 +1197,14 @@
         const msg = e && e.message ? e.message : "Unknown error";
         if (isSessionEndedError(msg)) {
           handleSessionEnded();
+        } else if (isTokensDepletedError(msg)) {
+          endDeliberation();
+          setStatus(t("tokensDepleted"), "err");
+          showInlineError(t("tokensDepleted"));
+          run.disabled = false;
         } else {
-          hideCouncilWatch();
-          setStatus("Error (check server)", "err");
+          endDeliberation();
+          setStatus(t("errorCheckServer"), "err");
           showInlineError(msg);
           if (timerExpired && answer.value.trim()) {
             allowFinalSubmit = true;
@@ -1219,8 +1226,17 @@
 
     function toggleCouncilCard(card) {
       if (!card) return;
-      const open = card.classList.toggle("is-expanded");
-      card.setAttribute("aria-expanded", open ? "true" : "false");
+      const willOpen = !card.classList.contains("is-expanded");
+      if (councilGrid) {
+        councilGrid.querySelectorAll(".council-member.is-expanded").forEach((el) => {
+          if (el !== card) {
+            el.classList.remove("is-expanded");
+            el.setAttribute("aria-expanded", "false");
+          }
+        });
+      }
+      card.classList.toggle("is-expanded", willOpen);
+      card.setAttribute("aria-expanded", willOpen ? "true" : "false");
     }
 
     if (councilGrid) {
@@ -1240,6 +1256,7 @@
 
     window.addEventListener("beforeunload", saveSessionBackup);
 
+    BeforeI18n.applyStaticUi();
     renderTimer();
     renderCouncil(DEFAULT_COUNCIL);
     loadCouncilConfig().then(() => refreshUsage());

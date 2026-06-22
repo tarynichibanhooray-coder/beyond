@@ -70,9 +70,10 @@ class SessionManager:
         question: str,
         transcript: str,
         bpm_window: list[tuple[float, float]],
+        locale: str = "en",
     ) -> CouncilTurnResult:
         result: CouncilTurnResult | None = None
-        async for event in self.run_turn_events(question, transcript, bpm_window):
+        async for event in self.run_turn_events(question, transcript, bpm_window, locale):
             if event["type"] == "complete":
                 result = CouncilTurnResult.model_validate(event["result"])
         if result is None:
@@ -84,11 +85,13 @@ class SessionManager:
         question: str,
         transcript: str,
         bpm_window: list[tuple[float, float]],
+        locale: str = "en",
     ):
         ctx = TurnContext(
             question=question,
             transcript=transcript,
             bpm_window=bpm_window,
+            locale=locale,
         )
         history_snippet = json.dumps(self.conversation_history[-4:], default=str)
         with bind_usage_ledger(self.usage):
@@ -118,10 +121,10 @@ class SessionManager:
                     )
                 yield event
 
-    async def end_session(self) -> DeltaFinal:
+    async def end_session(self, locale: str = "en") -> DeltaFinal:
         summary = json.dumps(self.conversation_history, default=str)
         with bind_usage_ledger(self.usage):
-            final = await self._delta.final_question(summary)
+            final = await self._delta.final_question(summary, locale=locale)
         self.conversation_history.append(
             {"final_question": final.model_dump()},
         )

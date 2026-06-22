@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     session_duration_seconds: int = 180
     transcript_dir: Path = Field(default=Path("transcripts"))
-    # 0 = unlimited; when set, UI and logs show remaining = budget − server used tokens
+    # Daily token cap (UTC day). 0 = unlimited / not enforced (typical for local mock).
     token_budget: int = 0
     # Comma-separated exactly 3 council member ids (arabi, blake, morrison, kierkegaard)
     council_roster: str = "arabi,morrison,kierkegaard"

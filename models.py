@@ -57,6 +57,7 @@ class DeltaFinal(BaseModel):
 class TurnContext(BaseModel):
     question: str
     transcript: str
+    locale: str = "en"
     bpm_window: list[tuple[float, float]] = Field(
         default_factory=list,
         description="(timestamp_offset_sec, bpm) samples for this turn",

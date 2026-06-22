@@ -7,6 +7,7 @@ from agents._client import create_message, get_anthropic_client, parse_json_resp
 from agents._speak import call_speak, speak_user_block
 from prompt_training.prompts import MORRISON_SPEAK, PSI_REFLECT
 from config import settings
+from utils.locale import apply_locale_system, normalize_locale
 from models import (
     ConversationLine,
     KierkegaardReflection,
@@ -17,6 +18,12 @@ from models import (
 
 
 def _mock_reflect(ctx: TurnContext) -> PsiOutput:
+    if normalize_locale(ctx.locale) == "es":
+        return PsiOutput(
+            witness_read="Piden ser vistos sin nombrar lo que necesitan que se vea.",
+            carried_story="Voces antiguas aún pueden estar midiendo si se les permite estar perdidos.",
+            color_intensity=70,
+        )
     return PsiOutput(
         witness_read="They are asking to be seen without naming what they need seen.",
         carried_story="Older voices may still be measuring whether they are allowed to be lost.",
@@ -28,6 +35,19 @@ def _mock_speak(
     ctx: TurnContext,
     conversation: list[ConversationLine],
 ) -> str:
+    if normalize_locale(ctx.locale) == "es":
+        if len(conversation) == 1:
+            prior = conversation[0].speaker
+            if prior == "arabi":
+                return (
+                    "Arabi, los ampliarías hacia el umbral—pero están sobre lo que "
+                    "su gente cargó. No lo trasciendes; lo integras, o los dejas huérfanos."
+                )
+            return (
+                "Blake, quemarías el pasado para ver—pero están sobre lo que su gente "
+                "cargó. No lo trasciendes; lo integras, o los dejas huérfanos."
+            )
+        return "Lo que dijeron tiene ancestros. Nómbralos antes de pedirles que salten."
     if len(conversation) == 1:
         prior = conversation[0].speaker
         if prior == "arabi":
@@ -56,7 +76,7 @@ class PsiAgent:
                 label="morrison.reflect",
                 model=settings.anthropic_model,
                 max_tokens=350,
-                system=PSI_REFLECT,
+                system=apply_locale_system(PSI_REFLECT, ctx.locale),
                 messages=[
                     {
                         "role": "user",
@@ -64,6 +84,7 @@ class PsiAgent:
                             {
                                 "question": ctx.question,
                                 "transcript": ctx.transcript,
+                                "locale": normalize_locale(ctx.locale),
                             },
                             ensure_ascii=False,
                         ),
@@ -87,6 +108,6 @@ class PsiAgent:
         user = speak_user_block(ctx, self.member_id, reflections, conversation)
 
         def _call() -> str:
-            return call_speak(MORRISON_SPEAK, user, label="morrison.speak", max_tokens=350)
+            return call_speak(MORRISON_SPEAK, user, label="morrison.speak", max_tokens=350, locale=ctx.locale)
 
         return await asyncio.to_thread(_call)

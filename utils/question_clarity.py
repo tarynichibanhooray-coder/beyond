@@ -8,6 +8,7 @@ import re
 
 from agents._client import create_message, get_anthropic_client
 from config import settings
+from utils.locale import REPHRASE_SYSTEM, normalize_locale
 
 _CONFUSION_PHRASES = (
     "don't understand",
@@ -35,6 +36,25 @@ _CONFUSION_PHRASES = (
     "what are you asking",
     "i don't know what you're asking",
     "i dont know what youre asking",
+    "no entiendo",
+    "no comprendo",
+    "qué quieres decir",
+    "que quieres decir",
+    "qué significa",
+    "que significa",
+    "no tiene sentido",
+    "estoy confundido",
+    "estoy confundida",
+    "más simple",
+    "mas simple",
+    "más sencillo",
+    "mas sencillo",
+    "puedes reformular",
+    "puede reformular",
+    "repítelo",
+    "repitelo",
+    "no sé qué preguntas",
+    "no se que preguntas",
 )
 
 
@@ -49,13 +69,20 @@ def is_confusion_transcript(transcript: str) -> bool:
     return False
 
 
-def _mock_rephrase(question: str) -> str:
+def _mock_rephrase(question: str, locale: str = "en") -> str:
     q = question.strip()
     simplified = re.sub(r"\s*—\s*", ", ", q)
     simplified = re.sub(r"\s+", " ", simplified)
     if len(simplified) > 100:
         parts = simplified.split("?")
         simplified = parts[0].strip() + "?"
+    if normalize_locale(locale) == "es":
+        templates = {
+            "¿Qué te trajo aquí?": "¿Qué te hizo querer estar aquí hoy?",
+        }
+        if simplified in templates:
+            return templates[simplified]
+        return f"Déjame preguntarlo de forma más simple: {simplified}"
     templates = {
         "What brought you here?": "What made you want to be here today?",
     }
@@ -64,10 +91,12 @@ def _mock_rephrase(question: str) -> str:
     return f"Let me ask that more simply: {simplified}"
 
 
-async def rephrase_question(question: str, transcript: str) -> str:
+async def rephrase_question(question: str, transcript: str, locale: str = "en") -> str:
     client = get_anthropic_client()
     if client is None:
-        return _mock_rephrase(question)
+        return _mock_rephrase(question, locale)
+
+    loc = normalize_locale(locale)
 
     def _call() -> str:
         msg = create_message(
@@ -75,12 +104,7 @@ async def rephrase_question(question: str, transcript: str) -> str:
             label="question.rephrase",
             model=settings.anthropic_model,
             max_tokens=120,
-            system=(
-                "Rephrase the council's question so anyone can understand it. "
-                "Use plain everyday English. No jargon, no untranslated foreign terms, "
-                "no metaphysical vocabulary. One or two short sentences. Output ONLY the "
-                "rephrased question text, no quotes or preamble."
-            ),
+            system=REPHRASE_SYSTEM[loc],
             messages=[
                 {
                     "role": "user",
@@ -88,6 +112,7 @@ async def rephrase_question(question: str, transcript: str) -> str:
                         {
                             "original_question": question,
                             "participant_said": transcript,
+                            "locale": loc,
                         },
                         ensure_ascii=False,
                     ),
@@ -97,6 +122,6 @@ async def rephrase_question(question: str, transcript: str) -> str:
         text = msg.content[0].text.strip()
         if text.startswith('"') and text.endswith('"'):
             text = text[1:-1].strip()
-        return text or _mock_rephrase(question)
+        return text or _mock_rephrase(question, locale)
 
     return await asyncio.to_thread(_call)

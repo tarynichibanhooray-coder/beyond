@@ -5,7 +5,7 @@ import time
 import uuid
 from dataclasses import dataclass
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -18,7 +18,9 @@ from config import settings
 from models import CouncilTurnResult
 from session import SessionManager
 from utils.question_clarity import is_confusion_transcript, rephrase_question
+from utils.locale import initial_question, localize_member_profiles, normalize_locale, resolve_locale
 from utils.session_export import export_transcript_file
+from utils.daily_budget import assert_budget_available, daily_usage_snapshot, depleted_message, set_budget_locale
 from utils.usage import log_turn_usage, server_usage, server_usage_snapshot
 
 ROOT = Path(__file__).resolve().parent
@@ -27,14 +29,13 @@ app = FastAPI(title="Before — demo")
 
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
 
-INITIAL_QUESTION = "What brought you here?"
-
 
 @dataclass
 class _SessionState:
     sm: SessionManager
     question: str
     turn: int
+    locale: str = "en"
     turn_busy: bool = False
 
 
@@ -45,6 +46,7 @@ class UsageInfo(BaseModel):
     turn: dict
     session: dict
     server: dict
+    daily: dict
     token_budget: int
 
 
@@ -99,6 +101,7 @@ def _usage_payload(ledger, before) -> UsageInfo:
         turn=after.delta(before).to_dict(model, budget),
         session=after.to_dict(model, budget),
         server=server_usage_snapshot(model, budget),
+        daily=daily_usage_snapshot(budget),
         token_budget=budget,
     )
 
@@ -111,15 +114,24 @@ def _usage_payload_idle(ledger) -> UsageInfo:
         turn=empty,
         session=ledger.snapshot().to_dict(model, budget),
         server=server_usage_snapshot(model, budget),
+        daily=daily_usage_snapshot(budget),
         token_budget=budget,
     )
 
 
-def _fallback_question(transcript: str) -> str:
+def _budget_http_error(locale: str) -> HTTPException:
+    return HTTPException(status_code=503, detail=depleted_message(locale))
+
+
+def _fallback_question(transcript: str, locale: str = "en") -> str:
     seed = transcript.strip()
+    if normalize_locale(locale) == "es":
+        if not seed:
+            return "¿Qué te niegas a elegir, incluso ahora?"
+        return f'Dijiste: "{seed[:120]}". ¿Qué verdad dentro de eso estás listo para vivir hoy?'
     if not seed:
         return "What are you refusing to choose, even now?"
-    return f"You said, \"{seed[:120]}\". What truth inside that are you ready to live by today?"
+    return f'You said, "{seed[:120]}". What truth inside that are you ready to live by today?'
 
 
 def _sse(data: dict) -> str:
@@ -134,7 +146,7 @@ async def _rephrase_turn_response(
     transcript: str,
     usage_before,
 ) -> TurnResponse:
-    simpler = await rephrase_question(original_question, transcript)
+    simpler = await rephrase_question(original_question, transcript, state.locale)
     state.question = simpler
     state.sm.note_current_question(simpler)
     usage = _usage_payload(state.sm.usage, usage_before)
@@ -175,7 +187,7 @@ async def _finalize_turn(
 ) -> TurnResponse:
     next_q = result.decision.next_question.strip()
     if not next_q:
-        next_q = _fallback_question(transcript)
+        next_q = _fallback_question(transcript, state.locale)
     chosen = result.decision.chosen_asker
 
     state.turn += 1
@@ -191,7 +203,7 @@ async def _finalize_turn(
         str(state.sm.last_transcript_path) if state.sm.last_transcript_path else None
     )
     if done:
-        final = await state.sm.end_session()
+        final = await state.sm.end_session(locale=state.locale)
         final_question = final.final_question
         reasoning = final.reasoning
 
@@ -231,29 +243,38 @@ async def index() -> FileResponse:
 
 
 @app.get("/api/council")
-async def council_config() -> dict:
+async def council_config(accept_language: str | None = Header(default=None)) -> dict:
+    locale = resolve_locale(accept_language)
     roster = parse_roster()
     return {
         "roster": roster,
-        "members": member_profiles_for_roster(roster),
+        "members": localize_member_profiles(member_profiles_for_roster(roster), locale),
+        "locale": locale,
     }
 
 
 @app.post("/api/session/start")
-async def start_session() -> StartResponse:
+async def start_session(accept_language: str | None = Header(default=None)) -> StartResponse:
+    locale = resolve_locale(accept_language)
+    set_budget_locale(locale)
+    try:
+        assert_budget_available(locale)
+    except RuntimeError as exc:
+        raise _budget_http_error(locale) from exc
+    question = initial_question(locale)
     sm = SessionManager()
-    sm.start_session(initial_question=INITIAL_QUESTION)
+    sm.start_session(initial_question=question)
     session_id = uuid.uuid4().hex
-    _SESSIONS[session_id] = _SessionState(sm=sm, question=INITIAL_QUESTION, turn=0)
+    _SESSIONS[session_id] = _SessionState(sm=sm, question=question, turn=0, locale=locale)
     roster = parse_roster()
     return StartResponse(
         session_id=session_id,
-        question=INITIAL_QUESTION,
+        question=question,
         remaining_sec=sm.remaining(),
         mock_mode=settings.mock_mode,
         usage=_usage_payload_idle(sm.usage),
         council_roster=roster,
-        council=member_profiles_for_roster(roster),
+        council=localize_member_profiles(member_profiles_for_roster(roster), locale),
         transcript_path=str(sm.last_transcript_path) if sm.last_transcript_path else None,
     )
 
@@ -282,6 +303,12 @@ async def answer(session_id: str, req: AnswerRequest) -> TurnResponse:
 
     state.sm.note_current_question(state.question)
     state.turn_busy = True
+    set_budget_locale(state.locale)
+    try:
+        assert_budget_available(state.locale)
+    except RuntimeError as exc:
+        state.turn_busy = False
+        raise _budget_http_error(state.locale) from exc
     bpm_window: list[tuple[float, float]] = []
 
     q = state.question
@@ -295,8 +322,10 @@ async def answer(session_id: str, req: AnswerRequest) -> TurnResponse:
                 transcript=req.transcript,
                 usage_before=usage_before,
             )
-        result = await state.sm.run_turn(q, req.transcript, bpm_window)
+        result = await state.sm.run_turn(q, req.transcript, bpm_window, locale=state.locale)
     except RuntimeError as exc:
+        if depleted_message("en") in str(exc) or depleted_message("es") in str(exc):
+            raise _budget_http_error(state.locale) from exc
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ModuleNotFoundError as exc:
         raise HTTPException(
@@ -338,6 +367,12 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
 
     state.sm.note_current_question(state.question)
     state.turn_busy = True
+    set_budget_locale(state.locale)
+    try:
+        assert_budget_available(state.locale)
+    except RuntimeError as exc:
+        state.turn_busy = False
+        raise _budget_http_error(state.locale) from exc
     bpm_window: list[tuple[float, float]] = []
     q = state.question
     usage_before = state.sm.usage.snapshot()
@@ -354,7 +389,7 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
                 )
                 yield _sse({"type": "turn_done", **response.model_dump()})
                 return
-            async for event in state.sm.run_turn_events(q, req.transcript, bpm_window):
+            async for event in state.sm.run_turn_events(q, req.transcript, bpm_window, locale=state.locale):
                 if event["type"] == "complete":
                     result = CouncilTurnResult.model_validate(event["result"])
                     response = await _finalize_turn(
@@ -371,7 +406,10 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
                 else:
                     yield _sse(event)
         except RuntimeError as exc:
-            yield _sse({"type": "error", "detail": str(exc)})
+            if depleted_message("en") in str(exc) or depleted_message("es") in str(exc):
+                yield _sse({"type": "error", "detail": depleted_message(state.locale)})
+            else:
+                yield _sse({"type": "error", "detail": str(exc)})
         except ModuleNotFoundError:
             yield _sse(
                 {
@@ -403,6 +441,7 @@ async def usage(session_id: str | None = None) -> dict:
         "mock_mode": settings.mock_mode,
         "model": model,
         "token_budget": budget,
+        "daily": daily_usage_snapshot(budget),
         "server": server_usage_snapshot(model, budget),
         "billing_note": "Estimated from token counts. Actual balance: console.anthropic.com → Billing.",
     }
@@ -415,13 +454,17 @@ async def usage(session_id: str | None = None) -> dict:
 
 
 @app.get("/api/transcript/{filename}/export")
-async def export_transcript(filename: str) -> Response:
+async def export_transcript(
+    filename: str,
+    accept_language: str | None = Header(default=None),
+) -> Response:
     if not filename.endswith(".json") or ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid transcript filename")
     path = settings.transcript_dir / filename
     if not path.is_file():
         raise HTTPException(status_code=404, detail="Transcript not found")
-    html_out, html_name = export_transcript_file(path)
+    locale = resolve_locale(accept_language)
+    html_out, html_name = export_transcript_file(path, locale=locale)
     return Response(
         content=html_out,
         media_type="text/html; charset=utf-8",

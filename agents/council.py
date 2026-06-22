@@ -13,6 +13,7 @@ from agents.psi_agent import PsiAgent
 from agents.roster import CouncilMemberId, display_label, display_name, parse_roster
 from prompt_training.prompts import COUNCIL_DECIDE
 from config import settings
+from utils.locale import apply_locale_system, normalize_locale
 from models import (
     ConversationLine,
     CouncilDecision,
@@ -31,12 +32,20 @@ AGENT_CLASSES = {
 def _mock_decide(ctx: TurnContext, conversation: list[ConversationLine], roster: list[CouncilMemberId]) -> CouncilDecision:
     askers = [m for m in roster if m != "kierkegaard"] + ["kierkegaard"]
     chosen = askers[abs(hash(ctx.transcript)) % len(askers)]
-    questions = {
-        "arabi": "What if this threshold you stand in is not before your life—but the place where your searching becomes visible?",
-        "blake": "What image are you refusing to see that keeps returning to you?",
-        "morrison": "Whose story are you still performing—and what would your body say if you stopped?",
-        "kierkegaard": "What would you begin if you trusted that becoming yourself is allowed?",
-    }
+    if normalize_locale(ctx.locale) == "es":
+        questions = {
+            "arabi": "¿Y si este umbral en el que estás no está antes de tu vida, sino en el lugar donde tu búsqueda se hace visible?",
+            "blake": "¿Qué imagen te niegas a ver que sigue volviendo a ti?",
+            "morrison": "¿La historia de quién sigues representando—y qué diría tu cuerpo si dejaras de hacerlo?",
+            "kierkegaard": "¿Qué comenzarías si confiaras en que convertirte en ti mismo está permitido?",
+        }
+    else:
+        questions = {
+            "arabi": "What if this threshold you stand in is not before your life—but the place where your searching becomes visible?",
+            "blake": "What image are you refusing to see that keeps returning to you?",
+            "morrison": "Whose story are you still performing—and what would your body say if you stopped?",
+            "kierkegaard": "What would you begin if you trusted that becoming yourself is allowed?",
+        }
     return CouncilDecision(
         chosen_asker=chosen,
         next_question=questions[chosen],
@@ -142,6 +151,7 @@ class AgentCouncil:
             {
                 "question": ctx.question,
                 "participant_answer": ctx.transcript,
+                "locale": normalize_locale(ctx.locale),
                 "active_roster": self.roster,
                 "private_reflections": reflections,
                 "conversation": [c.model_dump() for c in conversation],
@@ -156,7 +166,7 @@ class AgentCouncil:
                 label="council.decide",
                 model=settings.anthropic_model,
                 max_tokens=280,
-                system=COUNCIL_DECIDE,
+                system=apply_locale_system(COUNCIL_DECIDE, ctx.locale),
                 messages=[{"role": "user", "content": payload}],
             )
             decision = parse_json_response(msg.content[0].text, CouncilDecision)

@@ -19,10 +19,18 @@ def create_message(client, *, label: str, **kwargs):
             **kwargs,
             "system": "\n\n".join(block["text"] for block in system),
         }
+    if not settings.mock_mode and settings.token_budget > 0:
+        from utils.daily_budget import assert_budget_available
+
+        assert_budget_available()
     msg = client.messages.create(**kwargs)
     from utils.usage import record_message_usage
 
     record_message_usage(msg, label)
+    if not settings.mock_mode and settings.token_budget > 0:
+        from utils.daily_budget import record_message_tokens
+
+        record_message_tokens(msg)
     from utils.usage import log_api_usage
 
     log_api_usage(msg, label, budget=settings.token_budget)

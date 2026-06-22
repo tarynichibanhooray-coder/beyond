@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from agents.roster import MEMBER_PROFILES, display_label, display_name, member_profiles_for_roster
+from utils.locale import Locale, export_ui, localize_member_profiles
 
 ROOT = Path(__file__).resolve().parent.parent
 EXPORT_CSS_PATH = ROOT / "static" / "export.css"
@@ -109,7 +110,12 @@ def _session_label_from_filename(filename: str | None) -> str | None:
     return f"{date_part[:4]}-{date_part[4:6]}-{date_part[6:8]} · {time_part[:2]}:{time_part[2:4]}:{time_part[4:6]}"
 
 
-def _render_turn(turn: dict[str, Any], turn_index: int, members: list[dict[str, Any]]) -> str:
+def _render_turn(
+    turn: dict[str, Any],
+    turn_index: int,
+    members: list[dict[str, Any]],
+    ui: dict[str, str],
+) -> str:
     roster = turn.get("council_roster") or [m["id"] for m in members]
     member_map = {m["id"]: m for m in members}
     reflections = turn.get("reflections") or {}
@@ -137,23 +143,23 @@ def _render_turn(turn: dict[str, Any], turn_index: int, members: list[dict[str, 
         )
 
     chosen = turn.get("chosen_asker") or ""
-    chosen_name = display_name(chosen) if chosen in MEMBER_PROFILES else (chosen or "Council")
+    chosen_name = display_name(chosen) if chosen in MEMBER_PROFILES else (chosen or ui["council"])
 
     return (
         f'<div class="turn">'
         f"<h2>{_turn_heading(turn_index)}</h2>"
         f'<article class="feed-question">'
-        f"<h3>Question</h3>"
+        f"<h3>{_esc(ui['question'])}</h3>"
         f'<p class="qtext">{_esc(turn.get("question", ""))}</p></article>'
         f'<p class="feed-answer">{_esc(turn.get("transcript", ""))}</p>'
         f'<article class="private-thoughts">'
-        f"<h3>Observations</h3>"
+        f"<h3>{_esc(ui['observations'])}</h3>"
         f'<div class="thought-grid">{"".join(thought_cards)}</div></article>'
         f'<article class="conversation">'
-        f"<h3>Conversation</h3>"
+        f"<h3>{_esc(ui['conversation'])}</h3>"
         f'<div class="conv-lines">{"".join(conversation_lines)}</div></article>'
         f'<article class="forged">'
-        f"<h3>{_esc(chosen_name)} asks next</h3>"
+        f"<h3>{_esc(chosen_name)} {_esc(ui['asks_next'])}</h3>"
         f'<p class="q-next">{_esc(turn.get("next_question", ""))}</p></article>'
         f"</div>"
     )
@@ -166,12 +172,14 @@ def build_session_export_html(
     session_label: str | None = None,
     final_question: str | None = None,
     final_reasoning: str | None = None,
+    locale: Locale = "en",
 ) -> str:
+    ui = export_ui(locale)
     turns, parsed_final_q, parsed_final_r = _parse_history(history)
     if not members and turns:
         roster = turns[0].get("council_roster") or []
         members = member_profiles_for_roster(roster)  # type: ignore[arg-type]
-    members = members or member_profiles_for_roster()
+    members = localize_member_profiles(members or member_profiles_for_roster(), locale)
 
     final_q = final_question if final_question is not None else parsed_final_q
     final_r = final_reasoning if final_reasoning is not None else parsed_final_r
@@ -187,13 +195,13 @@ def build_session_export_html(
         for m in members
     )
 
-    turns_html = "".join(_render_turn(turn, idx, members) for idx, turn in enumerate(turns, start=1))
+    turns_html = "".join(_render_turn(turn, idx, members, ui) for idx, turn in enumerate(turns, start=1))
 
     final_html = ""
     if final_q:
         final_html = (
             '<section class="final">'
-            "<h2>Your final question</h2>"
+            f"<h2>{_esc(ui['final_question'])}</h2>"
             f'<p class="final-q">{_esc(final_q)}</p>'
             "</section>"
         )
@@ -204,32 +212,37 @@ def build_session_export_html(
 
     return (
         "<!DOCTYPE html>\n"
-        '<html lang="en">\n'
+        f'<html lang="{locale}">\n'
         "<head>\n"
         '  <meta charset="utf-8" />\n'
         '  <meta name="viewport" content="width=device-width, initial-scale=1" />\n'
-        "  <title>Before — session</title>\n"
+        f"  <title>{_esc(ui['page_title'])}</title>\n"
         f"  <style>\n{css}\n  </style>\n"
         "</head>\n"
         "<body>\n"
         '  <main class="wrap">\n'
         '    <header class="head-title">\n'
-        "      <h1>In This Time Before</h1>\n"
+        f"      <h1>{_esc(ui['heading'])}</h1>\n"
         f"      {meta_line}\n"
         "    </header>\n"
         f'    <section class="council-roster">{roster_html}</section>\n'
         f'    <section class="log">{turns_html}</section>\n'
         f"    {final_html}\n"
-        '    <footer class="export-footer">Generated from In This Time Before</footer>\n'
+        f'    <footer class="export-footer">{_esc(ui["footer"])}</footer>\n'
         "  </main>\n"
         "</body>\n"
         "</html>\n"
     )
 
 
-def export_transcript_file(path: Path, *, session_label: str | None = None) -> tuple[str, str]:
+def export_transcript_file(
+    path: Path,
+    *,
+    session_label: str | None = None,
+    locale: Locale = "en",
+) -> tuple[str, str]:
     history = json.loads(path.read_text(encoding="utf-8"))
     label = session_label or _session_label_from_filename(path.name)
-    html_out = build_session_export_html(history, session_label=label)
+    html_out = build_session_export_html(history, session_label=label, locale=locale)
     filename = export_filename_from_history(history, fallback_stem=path.stem)
     return html_out, filename

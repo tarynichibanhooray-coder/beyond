@@ -36,6 +36,29 @@ async def test_session_turn_uses_mock_council():
     assert len(result.conversation) == 3
 
 
+def test_spanish_session_dialogue_in_mock_mode():
+    import app as app_mod
+
+    client = TestClient(app_mod.app)
+    start = client.post("/api/session/start", headers={"Accept-Language": "es-ES"})
+    assert start.status_code == 200
+    data = start.json()
+    assert data["question"] == "¿Qué te trajo aquí?"
+
+    session_id = data["session_id"]
+    turn = client.post(
+        f"/api/session/{session_id}/answer",
+        json={"transcript": "Vine porque necesitaba silencio."},
+        headers={"Accept-Language": "es-ES"},
+    )
+    assert turn.status_code == 200
+    body = turn.json()
+    assert body["next_question"]
+    assert any(ch in body["next_question"] for ch in "¿áéíóú")
+    assert body["conversation"]
+    assert any(ch in body["conversation"][0]["text"] for ch in "áéíóú")
+
+
 def test_api_session_flow_without_live_ai():
     import app as app_mod
 
@@ -79,7 +102,8 @@ def test_confusion_transcript_detection():
     assert is_confusion_transcript("I don't understand the question")
     assert is_confusion_transcript("What do you mean?")
     assert is_confusion_transcript("huh")
-    assert not is_confusion_transcript("I came because I needed quiet.")
+    assert is_confusion_transcript("no entiendo la pregunta")
+    assert is_confusion_transcript("¿qué quieres decir?")
 
 
 def test_confusion_rephrase_skips_council_turn():
