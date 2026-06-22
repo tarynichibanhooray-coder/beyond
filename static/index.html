@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Before — demo</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <main class="wrap">
+    <header class="head">
+      <div class="head-row">
+        <h1>In This Time Before</h1>
+        <span id="timer" class="head-clock idle" aria-live="polite" aria-label="Time remaining">--:--</span>
+      </div>
+      <p class="sub">A chamber session at a historical threshold</p>
+    </header>
+
+    <section class="council-intro" aria-label="The council">
+      <div class="council-grid">
+        <article class="council-member blake">
+          <h3>
+            <span class="glyph">Λ</span>
+            William Blake
+            <span class="years">1757–1827</span>
+            <span class="role">The Visionary</span>
+          </h3>
+          <p class="bio-role">Sees what you are imagining—and what you refuse to imagine. Reads symbol, fire, and the sacred breaking through language.</p>
+          <p class="bio-pro">Visionary poet–artist who wrote and illustrated his own books, challenging reason, empire, and conventional religion.</p>
+        </article>
+        <article class="council-member morrison">
+          <h3>
+            <span class="glyph">Ψ</span>
+            Toni Morrison
+            <span class="years">1931–2019</span>
+            <span class="role">The Witness</span>
+          </h3>
+          <p class="bio-role">Holds what you carry: memory in the body, stories that shaped you, what must be named before it can be lived.</p>
+          <p class="bio-pro">American writer and professor whose fiction and criticism insist that what is unspoken and unwitnessed still shapes the present.</p>
+        </article>
+        <article class="council-member kierkegaard">
+          <h3>
+            <span class="glyph">Δ</span>
+            Søren Kierkegaard
+            <span class="years">1813–1855</span>
+            <span class="role">The Leap</span>
+          </h3>
+          <p class="bio-role">Names the dread of freedom—the choice you postpone—and presses you toward a question that demands you decide how to live.</p>
+          <p class="bio-pro">Danish philosopher and theologian, a founder of existential thought, who wrote on faith, anxiety, and the leap of choice.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="controls">
+      <button type="button" id="run" class="btn">Start session</button>
+      <span id="status" class="status idle">Idle</span>
+    </section>
+
+    <section id="qa" class="qa hidden">
+      <div class="qbox">
+        <div class="qcap">Question</div>
+        <div id="question" class="qtext"></div>
+      </div>
+      <form id="answerForm" class="abox">
+        <label class="acap" for="answer">Response</label>
+        <textarea id="answer" rows="4" placeholder="Type your response…"></textarea>
+        <div class="arow">
+          <button type="submit" id="send" class="btn">Send</button>
+        </div>
+      </form>
+    </section>
+
+    <section id="log" class="log" aria-live="polite"></section>
+
+    <section id="final" class="final hidden">
+      <h2>Final question</h2>
+      <p id="final-q" class="final-q"></p>
+      <p id="final-meta" class="final-meta"></p>
+    </section>
+  </main>
+  <script>
+    const run = document.getElementById("run");
+    const qa = document.getElementById("qa");
+    const questionEl = document.getElementById("question");
+    const answerForm = document.getElementById("answerForm");
+    const answer = document.getElementById("answer");
+    const send = document.getElementById("send");
+    const status = document.getElementById("status");
+    const timer = document.getElementById("timer");
+    const log = document.getElementById("log");
+    const finalBox = document.getElementById("final");
+    const finalQ = document.getElementById("final-q");
+    const finalMeta = document.getElementById("final-meta");
+
+    let sessionId = null;
+    let currentQuestion = null;
+    let remainingSec = null;
+    let countdownId = null;
+
+    const SPEAKER_LABEL = {
+      blake: "Λ William Blake",
+      morrison: "Ψ Toni Morrison",
+      kierkegaard: "Δ Søren Kierkegaard",
+    };
+
+    function setStatus(text, cls) {
+      status.textContent = text;
+      status.className = "status " + (cls || "");
+    }
+
+    function fmt(sec) {
+      if (sec == null || sec === "") return "--:--";
+      const clamped = Math.max(0, Math.floor(sec));
+      const m = Math.floor(clamped / 60);
+      const s = clamped % 60;
+      return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+
+    function renderTimer() {
+      timer.textContent = fmt(remainingSec);
+      timer.classList.toggle("idle", remainingSec == null);
+      timer.classList.toggle("active", remainingSec != null && remainingSec > 0);
+      timer.classList.toggle("done", remainingSec === 0);
+    }
+
+    function stopCountdown() {
+      if (countdownId != null) {
+        clearInterval(countdownId);
+        countdownId = null;
+      }
+    }
+
+    function syncTimer(sec) {
+      remainingSec = sec;
+      renderTimer();
+    }
+
+    function startCountdown(sec) {
+      stopCountdown();
+      syncTimer(sec);
+      countdownId = setInterval(() => {
+        if (remainingSec == null || remainingSec <= 0) {
+          stopCountdown();
+          syncTimer(0);
+          return;
+        }
+        remainingSec -= 1;
+        renderTimer();
+      }, 1000);
+    }
+
+    function escapeHtml(s) {
+      const d = document.createElement("div");
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function privateThoughts(data) {
+      const wrap = document.createElement("article");
+      wrap.className = "private-thoughts";
+      wrap.innerHTML = "<h3>Private thoughts (each heard the answer alone)</h3>";
+      const b = data.blake_reflection || {};
+      const m = data.morrison_reflection || {};
+      const k = data.kierkegaard_reflection || {};
+      const grid = document.createElement("div");
+      grid.className = "thought-grid";
+      grid.innerHTML =
+        "<div class=\"thought blake\"><strong>William Blake</strong><p>" + escapeHtml(b.vision_read || "") + "</p></div>" +
+        "<div class=\"thought morrison\"><strong>Toni Morrison</strong><p>" + escapeHtml(m.witness_read || "") + "</p></div>" +
+        "<div class=\"thought kierkegaard\"><strong>Søren Kierkegaard</strong><p>" + escapeHtml(k.dread_read || "") + "</p></div>";
+      wrap.appendChild(grid);
+      return wrap;
+    }
+
+    function councilConversation(lines) {
+      const wrap = document.createElement("article");
+      wrap.className = "conversation";
+      wrap.innerHTML = "<h3>Council conversation</h3>";
+      const ul = document.createElement("ul");
+      (lines || []).forEach((entry) => {
+        const li = document.createElement("li");
+        const who = SPEAKER_LABEL[entry.speaker] || entry.speaker;
+        li.className = "line-" + (entry.speaker || "");
+        li.innerHTML = "<strong>" + escapeHtml(who) + "</strong> " + escapeHtml(entry.text || "");
+        ul.appendChild(li);
+      });
+      wrap.appendChild(ul);
+      return wrap;
+    }
+
+    function chosenQuestion(data) {
+      const box = document.createElement("article");
+      box.className = "forged";
+      const who = data.chosen_asker_display || data.chosen_asker || "Council";
+      box.innerHTML =
+        "<h3>" + escapeHtml(who) + " asks next</h3>" +
+        "<p class=\"q-next\">" + escapeHtml(data.next_question || "") + "</p>" +
+        "<p class=\"q-why\">" + escapeHtml(data.decision_rationale || "") + "</p>";
+      return box;
+    }
+
+    function clear() {
+      stopCountdown();
+      log.innerHTML = "";
+      finalBox.classList.add("hidden");
+      finalQ.textContent = "";
+      finalMeta.textContent = "";
+      remainingSec = null;
+      renderTimer();
+      qa.classList.add("hidden");
+      questionEl.textContent = "";
+      answer.value = "";
+      sessionId = null;
+      currentQuestion = null;
+    }
+
+    function showInlineError(msg) {
+      const turn = document.createElement("div");
+      turn.className = "turn";
+      turn.innerHTML = "<p class=\"a\"><strong>Error</strong> " + escapeHtml(msg) + "</p>";
+      log.appendChild(turn);
+    }
+
+    run.addEventListener("click", async () => {
+      clear();
+      run.disabled = true;
+      setStatus("Starting…", "run");
+      try {
+        const res = await fetch("/api/session/start", { method: "POST" });
+        if (!res.ok) throw new Error("start failed");
+        const data = await res.json();
+        sessionId = data.session_id;
+        currentQuestion = data.question;
+        startCountdown(data.remaining_sec);
+        questionEl.textContent = currentQuestion;
+        qa.classList.remove("hidden");
+        setStatus("Your turn", "run");
+        answer.focus();
+      } catch (e) {
+        run.disabled = false;
+        setStatus("Error (server not running?)", "err");
+      }
+    });
+
+    answerForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      if (!sessionId) return;
+      const text = answer.value.trim();
+      if (!text) return;
+      send.disabled = true;
+      setStatus("Council is deliberating…", "run");
+      try {
+        const res = await fetch(`/api/session/${sessionId}/answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transcript: text }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.detail || "Failed to process answer");
+        }
+        syncTimer(data.remaining_sec);
+
+        const turn = document.createElement("div");
+        turn.className = "turn";
+        turn.innerHTML =
+          "<h2>Turn " + data.turn + "</h2>" +
+          "<p class=\"q\"><strong>Q</strong> " + escapeHtml(data.question) + "</p>" +
+          "<p class=\"a\"><strong>You</strong> " + escapeHtml(data.transcript) + "</p>";
+        turn.appendChild(privateThoughts(data));
+        turn.appendChild(councilConversation(data.conversation));
+        turn.appendChild(chosenQuestion(data));
+        log.appendChild(turn);
+
+        answer.value = "";
+        if (data.done) {
+          qa.classList.add("hidden");
+          run.disabled = false;
+          setStatus("Done", "done");
+          stopCountdown();
+          syncTimer(0);
+          finalBox.classList.remove("hidden");
+          finalQ.textContent = data.final_question || "";
+          finalMeta.textContent = (data.reasoning || "") + (data.transcript_path ? "\n\nSaved: " + data.transcript_path : "");
+          sessionId = null;
+          currentQuestion = null;
+          return;
+        }
+
+        currentQuestion = data.next_question || "";
+        if (!currentQuestion) {
+          throw new Error("No next question returned by council");
+        }
+        questionEl.textContent = currentQuestion;
+        setStatus("Your turn", "run");
+        answer.focus();
+      } catch (e) {
+        setStatus("Error (check server)", "err");
+        showInlineError(e && e.message ? e.message : "Unknown error");
+      } finally {
+        send.disabled = false;
+      }
+    });
+
+    renderTimer();
+  </script>
+</body>
+</html>

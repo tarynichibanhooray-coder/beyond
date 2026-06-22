@@ -1,0 +1,1 @@
+"""Placeholder: drifting text compositor."""
