@@ -234,7 +234,7 @@
         startCountdown(data.remaining_sec);
         questionEl.textContent = currentQuestion;
         qa.classList.remove("hidden");
-        setStatus("Your turn", "run");
+        setStatus("", "");
         answer.focus();
       } catch (e) {
         run.disabled = false;
@@ -292,7 +292,7 @@
           throw new Error("No next question returned by council");
         }
         questionEl.textContent = currentQuestion;
-        setStatus("Your turn", "run");
+        setStatus("", "");
         answer.focus();
       } catch (e) {
         setStatus("Error (check server)", "err");
