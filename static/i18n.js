@@ -4,7 +4,9 @@
   var STRINGS = {
     en: {
       pageTitle: "Before — demo",
-      title: "In This Time Before",
+      titleLine1: "In this",
+      titleLine2: "time",
+      titleLine3: "before",
       timeRemaining: "Time remaining",
       tokenUsage: "Token usage",
       tokIn: "in",
@@ -41,7 +43,9 @@
     },
     es: {
       pageTitle: "Before — demo",
-      title: "En este tiempo previo",
+      titleLine1: "En este",
+      titleLine2: "tiempo",
+      titleLine3: "previo",
       timeRemaining: "Tiempo restante",
       tokenUsage: "Uso de tokens",
       tokIn: "entr",
@@ -113,12 +117,53 @@
     },
   };
 
+  function normalizeLocale(tag) {
+    var val = String(tag || "").toLowerCase();
+    if (val.indexOf("es") === 0) return "es";
+    if (val.indexOf("en") === 0) return "en";
+    return null;
+  }
+
+  function queryLocale() {
+    try {
+      var params = new URLSearchParams(global.location.search || "");
+      return normalizeLocale(params.get("lang"));
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function storedLocale() {
+    try {
+      return normalizeLocale(global.localStorage.getItem("before-locale"));
+    } catch (_err) {
+      return null;
+    }
+  }
+
+  function persistLocale(loc) {
+    try {
+      if (loc) global.localStorage.setItem("before-locale", loc);
+    } catch (_err) {
+      /* ignore */
+    }
+  }
+
   function resolveLocale() {
-    var langs = [global.navigator.language].concat(global.navigator.languages || []);
+    // Explicit override always wins.
+    var q = queryLocale();
+    if (q) {
+      persistLocale(q);
+      return q;
+    }
+    var saved = storedLocale();
+    if (saved) return saved;
+
+    // Browser preferred languages should outrank UI language.
+    var langs = (global.navigator.languages || []).concat([global.navigator.language]);
     for (var i = 0; i < langs.length; i += 1) {
-      var tag = String(langs[i] || "").toLowerCase();
-      if (tag.indexOf("es") === 0) return "es";
-      if (tag.indexOf("en") === 0) return "en";
+      var loc = normalizeLocale(langs[i]);
+      if (loc) return loc;
     }
     return "en";
   }
@@ -142,7 +187,9 @@
     global.document.documentElement.lang = locale;
     global.document.title = t("pageTitle");
     global.document.querySelectorAll("[data-i18n]").forEach(function (el) {
-      el.textContent = t(el.getAttribute("data-i18n"));
+      var key = el.getAttribute("data-i18n");
+      var translated = t(key);
+      if (translated !== key) el.textContent = translated;
     });
     global.document.querySelectorAll("[data-i18n-placeholder]").forEach(function (el) {
       el.placeholder = t(el.getAttribute("data-i18n-placeholder"));
@@ -176,10 +223,29 @@
     return Number(n).toLocaleString(locale === "es" ? "es" : "en-US");
   }
 
+  function applyTitleLines() {
+    var keys = ["titleLine1", "titleLine2", "titleLine3"];
+    var fallbacks = locale === "es"
+      ? ["En este", "tiempo", "previo"]
+      : ["In this", "time", "before"];
+    var lines = global.document.querySelectorAll(".head-title-line");
+    var parts = [];
+    for (var i = 0; i < lines.length; i += 1) {
+      var key = keys[i];
+      var translated = t(key);
+      var text = translated !== key ? translated : fallbacks[i];
+      lines[i].textContent = text;
+      parts.push(text);
+    }
+    var titleEl = global.document.querySelector(".head-title");
+    if (titleEl) titleEl.setAttribute("aria-label", parts.join(" "));
+  }
+
   global.BeforeI18n = {
     locale: locale,
     t: t,
     applyStaticUi: applyStaticUi,
+    applyTitleLines: applyTitleLines,
     localizeCouncilMembers: localizeCouncilMembers,
     apiHeaders: apiHeaders,
     formatNumber: formatNumber,

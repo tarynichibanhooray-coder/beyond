@@ -48,18 +48,22 @@
   </div>
   <main class="wrap">
     <header class="head">
+      <h1 class="head-title" aria-label="In This Time Before">
+        <span class="head-title-line">In this</span>
+        <span class="head-title-line">time</span>
+        <span class="head-title-line">before</span>
+      </h1>
       <div class="head-metrics-fixed">
         <div class="head-metrics-cluster">
-          <span id="timer" class="head-clock idle" aria-live="polite" data-i18n-aria="timeRemaining">--:--</span>
           <div id="usage" class="token-meter idle" aria-live="polite" data-i18n-aria="tokenUsage">
-            <div class="token-row">
+            <div class="token-row token-row-session">
               <span class="tok-label" data-i18n="tokIn">in</span>
               <span id="tok-in" class="tok-in">0</span>
               <span class="tok-sep">·</span>
               <span class="tok-label" data-i18n="tokOut">out</span>
               <span id="tok-out" class="tok-out">0</span>
             </div>
-            <div class="token-row">
+            <div class="token-row token-row-daily">
               <span class="tok-label" data-i18n="tokUsed">used</span>
               <span id="tok-used" class="tok-used">0</span>
               <span class="tok-sep">·</span>
@@ -67,9 +71,9 @@
               <span id="tok-rem" class="tok-rem">∞</span>
             </div>
           </div>
+          <span id="timer" class="head-clock idle" aria-live="polite" data-i18n-aria="timeRemaining">3:00</span>
         </div>
       </div>
-      <h1 data-i18n="title">In This Time Before</h1>
     </header>
 
     <section class="council-intro" id="councilIntro" data-i18n-aria="councilIntro" aria-label="The council">
@@ -99,7 +103,7 @@
       <button type="button" id="downloadSession" class="btn download-btn" data-i18n="downloadConversation">Download conversation</button>
     </section>
   </main>
-  <script src="/static/i18n.js"></script>
+  <script src="/static/i18n.js?v=3"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -147,6 +151,7 @@
     const TYPEWRITER_MS = 35;
     const TYPEWRITER_MS_SECONDARY = 29;
     const SPEAKER_PAUSE_MS = 2000;
+    const INITIAL_SESSION_SEC = 180;
     const READING_LINE_RATIO = 0.32;
     const TYPING_THRESHOLD_RATIO = 0.65;
     const SCROLL_PAD_BASE_VH = 70;
@@ -735,12 +740,15 @@
 
     function formatDailyRemaining(usage) {
       const daily = usage && usage.daily ? usage.daily : null;
-      const budget = (usage && usage.token_budget) || 0;
+      const budget = (usage && usage.token_budget) || (daily && daily.token_budget) || 0;
       if (daily && daily.remaining_tokens != null) {
         return formatTokens(daily.remaining_tokens);
       }
       if (budget > 0 && daily && daily.depleted) {
         return "0";
+      }
+      if (budget <= 0) {
+        return "∞";
       }
       return "—";
     }
@@ -749,35 +757,26 @@
       if (usage) lastUsageBundle = usage;
       const bundle = usage || lastUsageBundle;
       usageEl.classList.remove("mock", "idle", "live");
-      if (isMock) {
-        usageEl.classList.add("mock", "idle");
-        tokIn.textContent = "—";
-        tokOut.textContent = "—";
-        tokUsed.textContent = t("mock");
-        tokRem.textContent = "—";
-        return;
-      }
+      if (isMock) usageEl.classList.add("mock");
+
       const session = bundle && bundle.session ? bundle.session : null;
-      // in/out = this session; used/rem = daily totals from API.
       const src = sessionId && session ? session : null;
+      if (!sessionId) usageEl.classList.add("idle");
 
-      if (!src) {
-        usageEl.classList.add("idle");
-        tokIn.textContent = "0";
-        tokOut.textContent = "0";
-        tokUsed.textContent = formatDailyUsed(bundle);
-        tokRem.textContent = formatDailyRemaining(bundle);
-        return;
+      let inTok = 0;
+      let outTok = 0;
+      if (src) {
+        inTok = src.billable_input_tokens != null
+          ? src.billable_input_tokens
+          : src.input_tokens || 0;
+        outTok = src.output_tokens || 0;
+        if (src.api_calls > 0 || (src.used_tokens || 0) > 0) {
+          usageEl.classList.add("live");
+        }
       }
 
-      const hasUsage = src.api_calls > 0 || (src.used_tokens || 0) > 0;
-      usageEl.classList.add(hasUsage ? "live" : "idle");
-
-      const inTok = src.billable_input_tokens != null
-        ? src.billable_input_tokens
-        : src.input_tokens || 0;
       tokIn.textContent = formatTokens(inTok);
-      tokOut.textContent = formatTokens(src.output_tokens || 0);
+      tokOut.textContent = formatTokens(outTok);
       tokUsed.textContent = formatDailyUsed(bundle);
       tokRem.textContent = formatDailyRemaining(bundle);
     }
@@ -829,15 +828,16 @@
     }
 
     function fmt(sec) {
-      if (sec == null || sec === "") return "--:--";
+      if (sec == null || sec === "") return fmt(INITIAL_SESSION_SEC);
       const clamped = Math.max(0, Math.floor(sec));
       const m = Math.floor(clamped / 60);
       const s = clamped % 60;
-      return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+      return m + ":" + String(s).padStart(2, "0");
     }
 
     function renderTimer() {
-      timer.textContent = fmt(remainingSec);
+      const displaySec = remainingSec != null ? remainingSec : INITIAL_SESSION_SEC;
+      timer.textContent = fmt(displaySec);
       timer.classList.toggle("idle", remainingSec == null);
       timer.classList.toggle("active", remainingSec != null && remainingSec > 0);
       timer.classList.toggle("done", remainingSec === 0);
@@ -1349,8 +1349,10 @@
     window.addEventListener("beforeunload", saveSessionBackup);
 
     BeforeI18n.applyStaticUi();
+    BeforeI18n.applyTitleLines();
     renderTimer();
     renderCouncil(DEFAULT_COUNCIL);
+    refreshUsage();
     loadCouncilConfig().then(() => refreshUsage());
     clearSessionBackup();
     startAuraMotion();
