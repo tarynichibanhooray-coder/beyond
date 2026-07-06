@@ -62,7 +62,7 @@ def _load_raw() -> dict[str, Any]:
 def _save_raw(data: dict[str, Any]) -> None:
     path = usage_file_path()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    path.write_text(json.dumps(data, separators=(",", ":")), encoding="utf-8")
 
 
 def tokens_used_today() -> int:
@@ -72,6 +72,26 @@ def tokens_used_today() -> int:
 
 def record_message_tokens(message: Any) -> int:
     added = message_total_tokens(message)
+    return record_token_total(added)
+
+
+def record_usage_tokens(
+    input_tokens: int,
+    output_tokens: int,
+    *,
+    cache_creation_input_tokens: int = 0,
+    cache_read_input_tokens: int = 0,
+) -> int:
+    added = (
+        int(input_tokens or 0)
+        + int(output_tokens or 0)
+        + int(cache_creation_input_tokens or 0)
+        + int(cache_read_input_tokens or 0)
+    )
+    return record_token_total(added)
+
+
+def record_token_total(added: int) -> int:
     if added <= 0:
         return 0
     with _LOCK:

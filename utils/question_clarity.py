@@ -9,6 +9,7 @@ import re
 from agents._client import create_message, get_anthropic_client
 from config import settings
 from utils.locale import REPHRASE_SYSTEM, normalize_locale
+from utils.question_limits import limit_question_sentences
 
 _CONFUSION_PHRASES = (
     "don't understand",
@@ -82,13 +83,13 @@ def _mock_rephrase(question: str, locale: str = "en") -> str:
         }
         if simplified in templates:
             return templates[simplified]
-        return f"Déjame preguntarlo de forma más simple: {simplified}"
+        return limit_question_sentences(f"Déjame preguntarlo de forma más simple: {simplified}")
     templates = {
         "What brought you here?": "What made you want to be here today?",
     }
     if simplified in templates:
         return templates[simplified]
-    return f"Let me ask that more simply: {simplified}"
+    return limit_question_sentences(f"Let me ask that more simply: {simplified}")
 
 
 async def rephrase_question(question: str, transcript: str, locale: str = "en") -> str:
@@ -122,6 +123,6 @@ async def rephrase_question(question: str, transcript: str, locale: str = "en") 
         text = msg.content[0].text.strip()
         if text.startswith('"') and text.endswith('"'):
             text = text[1:-1].strip()
-        return text or _mock_rephrase(question, locale)
+        return limit_question_sentences(text or _mock_rephrase(question, locale))
 
     return await asyncio.to_thread(_call)

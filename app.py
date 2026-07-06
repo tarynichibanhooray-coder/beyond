@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import secrets
 import time
 import uuid
 from dataclasses import dataclass
@@ -19,15 +20,17 @@ from models import CouncilTurnResult
 from session import SessionManager
 from utils.question_clarity import is_confusion_transcript, rephrase_question
 from utils.locale import initial_question, localize_member_profiles, normalize_locale, resolve_locale
+from utils.question_limits import limit_question_sentences
 from utils.session_export import export_transcript_file
 from utils.daily_budget import assert_budget_available, daily_usage_snapshot, depleted_message, set_budget_locale
-from utils.usage import log_turn_usage, server_usage, server_usage_snapshot
+from utils.usage import log_turn_usage, server_usage, server_usage_snapshot, sync_server_usage_from_daily
 
 ROOT = Path(__file__).resolve().parent
 
 app = FastAPI(title="Before — demo")
 
 app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+sync_server_usage_from_daily()
 
 
 @dataclass
@@ -87,6 +90,11 @@ class AnswerRequest(BaseModel):
     transcript: str = Field(min_length=1, max_length=2000)
 
 
+class ShareResponse(BaseModel):
+    share_id: str
+    share_url: str
+
+
 def _empty_usage_dict(model: str) -> dict:
     from utils.usage import UsageSnapshot
 
@@ -138,6 +146,63 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
 
 
+def _validate_transcript_filename(filename: str) -> Path:
+    if not filename.endswith(".json") or ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid transcript filename")
+    path = settings.transcript_dir / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Transcript not found")
+    return path
+
+
+def _share_index_path() -> Path:
+    return settings.transcript_dir / "shares.json"
+
+
+def _load_share_index() -> dict[str, str]:
+    path = _share_index_path()
+    if not path.is_file():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    return {
+        str(share_id): str(filename)
+        for share_id, filename in data.items()
+        if isinstance(share_id, str) and isinstance(filename, str)
+    }
+
+
+def _save_share_index(data: dict[str, str]) -> None:
+    path = _share_index_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, sort_keys=True, separators=(",", ":")), encoding="utf-8")
+
+
+def _share_url(share_id: str) -> str:
+    base = str(settings.app_base_url or "").rstrip("/") or "http://localhost:8765"
+    return f"{base}/s/{share_id}"
+
+
+def _ensure_share(filename: str) -> ShareResponse:
+    _validate_transcript_filename(filename)
+    shares = _load_share_index()
+    for share_id, mapped_filename in shares.items():
+        if mapped_filename == filename:
+            return ShareResponse(share_id=share_id, share_url=_share_url(share_id))
+
+    while True:
+        share_id = secrets.token_urlsafe(12)
+        if share_id not in shares:
+            break
+    shares[share_id] = filename
+    _save_share_index(shares)
+    return ShareResponse(share_id=share_id, share_url=_share_url(share_id))
+
+
 async def _rephrase_turn_response(
     state: _SessionState,
     *,
@@ -146,7 +211,9 @@ async def _rephrase_turn_response(
     transcript: str,
     usage_before,
 ) -> TurnResponse:
-    simpler = await rephrase_question(original_question, transcript, state.locale)
+    simpler = limit_question_sentences(
+        await rephrase_question(original_question, transcript, state.locale)
+    )
     state.question = simpler
     state.sm.note_current_question(simpler)
     usage = _usage_payload(state.sm.usage, usage_before)
@@ -185,9 +252,9 @@ async def _finalize_turn(
     result: CouncilTurnResult,
     usage_before,
 ) -> TurnResponse:
-    next_q = result.decision.next_question.strip()
+    next_q = limit_question_sentences(result.decision.next_question)
     if not next_q:
-        next_q = _fallback_question(transcript, state.locale)
+        next_q = limit_question_sentences(_fallback_question(transcript, state.locale))
     chosen = result.decision.chosen_asker
 
     state.turn += 1
@@ -204,7 +271,7 @@ async def _finalize_turn(
     )
     if done:
         final = await state.sm.end_session(locale=state.locale)
-        final_question = final.final_question
+        final_question = limit_question_sentences(final.final_question)
         reasoning = final.reasoning
 
     usage = _usage_payload(state.sm.usage, usage_before)
@@ -458,11 +525,7 @@ async def export_transcript(
     filename: str,
     accept_language: str | None = Header(default=None),
 ) -> Response:
-    if not filename.endswith(".json") or ".." in filename or "/" in filename or "\\" in filename:
-        raise HTTPException(status_code=400, detail="Invalid transcript filename")
-    path = settings.transcript_dir / filename
-    if not path.is_file():
-        raise HTTPException(status_code=404, detail="Transcript not found")
+    path = _validate_transcript_filename(filename)
     locale = resolve_locale(accept_language)
     html_out, html_name = export_transcript_file(path, locale=locale)
     return Response(
@@ -472,12 +535,35 @@ async def export_transcript(
     )
 
 
+@app.post("/api/transcript/{filename}/share")
+async def share_transcript(filename: str) -> ShareResponse:
+    return _ensure_share(filename)
+
+
+@app.get("/s/{share_id}")
+async def shared_transcript(
+    share_id: str,
+    accept_language: str | None = Header(default=None),
+) -> Response:
+    shares = _load_share_index()
+    filename = shares.get(share_id)
+    if not filename:
+        raise HTTPException(status_code=404, detail="Share not found")
+    path = _validate_transcript_filename(filename)
+    locale = resolve_locale(accept_language)
+    html_out, _html_name = export_transcript_file(path, locale=locale)
+    return Response(content=html_out, media_type="text/html; charset=utf-8")
+
+
 @app.get("/api/health")
 async def health() -> dict[str, str | bool]:
+    settings.transcript_dir.mkdir(parents=True, exist_ok=True)
     return {
         "status": "ok",
         "time": time.strftime("%Y-%m-%d %H:%M:%S"),
         "mock_mode": settings.mock_mode,
+        "transcript_dir": str(settings.transcript_dir),
+        "transcript_dir_exists": settings.transcript_dir.is_dir(),
     }
 
 

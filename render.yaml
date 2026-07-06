@@ -7,6 +7,10 @@ services:
     buildCommand: pip install -r requirements-anthropic.txt
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /api/health
+    disk:
+      name: before-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
       - key: MOCK_MODE
         value: "false"
@@ -20,5 +24,7 @@ services:
         value: arabi,morrison,kierkegaard
       - key: SESSION_DURATION_SECONDS
         value: "180"
+      - key: TRANSCRIPT_DIR
+        value: /var/data/transcripts
       - key: ANTHROPIC_API_KEY
         sync: false

@@ -145,19 +145,60 @@ _SERVER_TOTAL = UsageLedger()
 
 def record_message_usage(message: Any, label: str) -> None:
     ledger = _ACTIVE_LEDGER.get()
-    if ledger is None:
-        return
     usage = getattr(message, "usage", None)
     if usage is None:
         return
-    ledger.record(
-        usage.input_tokens,
-        usage.output_tokens,
-        label,
-        cache_creation_input_tokens=getattr(usage, "cache_creation_input_tokens", 0)
-        or 0,
-        cache_read_input_tokens=getattr(usage, "cache_read_input_tokens", 0) or 0,
-    )
+    input_tokens = usage.input_tokens
+    output_tokens = usage.output_tokens
+    cache_creation_input_tokens = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    cache_read_input_tokens = getattr(usage, "cache_read_input_tokens", 0) or 0
+
+    if ledger is not None:
+        ledger.record(
+            input_tokens,
+            output_tokens,
+            label,
+            cache_creation_input_tokens=cache_creation_input_tokens,
+            cache_read_input_tokens=cache_read_input_tokens,
+        )
+    elif settings_are_live_budgeted():
+        _SERVER_TOTAL.record(
+            input_tokens,
+            output_tokens,
+            label,
+            cache_creation_input_tokens=cache_creation_input_tokens,
+            cache_read_input_tokens=cache_read_input_tokens,
+        )
+
+    if settings_are_live_budgeted():
+        from utils.daily_budget import record_usage_tokens
+
+        record_usage_tokens(
+            input_tokens,
+            output_tokens,
+            cache_creation_input_tokens=cache_creation_input_tokens,
+            cache_read_input_tokens=cache_read_input_tokens,
+        )
+
+
+def settings_are_live_budgeted() -> bool:
+    from config import settings
+
+    return not settings.mock_mode and settings.token_budget > 0
+
+
+def sync_server_usage_from_daily() -> None:
+    from utils.daily_budget import daily_usage_snapshot
+
+    daily = daily_usage_snapshot()
+    used = int(daily.get("used_tokens") or 0)
+    current = _SERVER_TOTAL.snapshot().total_tokens
+    if used > current:
+        _SERVER_TOTAL.record(
+            used - current,
+            0,
+            "daily.restore",
+        )
 
 
 @contextmanager

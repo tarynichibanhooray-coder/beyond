@@ -112,10 +112,14 @@
     </section>
 
     <section id="sessionExport" class="session-export hidden">
-      <button type="button" id="downloadSession" class="btn download-btn" data-i18n="downloadConversation">Download conversation</button>
+      <div class="session-export-actions">
+        <button type="button" id="downloadSession" class="btn download-btn" data-i18n="downloadConversation">Download conversation</button>
+        <button type="button" id="shareSession" class="btn ghost" data-i18n="shareConversation">Share page</button>
+      </div>
+      <p id="shareNotice" class="export-notice hidden" aria-live="polite"></p>
     </section>
   </main>
-  <script src="/static/i18n.js?v=3"></script>
+  <script src="/static/i18n.js?v=4"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -143,6 +147,8 @@
     const sessionExport = document.getElementById("sessionExport");
     const finalQ = document.getElementById("final-q");
     const downloadSession = document.getElementById("downloadSession");
+    const shareSession = document.getElementById("shareSession");
+    const shareNotice = document.getElementById("shareNotice");
     const auraEl = document.getElementById("aura");
     const usageEl = document.getElementById("usage");
     const tokIn = document.getElementById("tok-in");
@@ -162,6 +168,7 @@
     let answerLocked = false;
     const TYPEWRITER_MS = 35;
     const TYPEWRITER_MS_SECONDARY = 29;
+    const PRIVATE_THOUGHT_MAX_MS = 600;
     const SPEAKER_PAUSE_MS = 2000;
     const INITIAL_SESSION_SEC = 180;
     const READING_LINE_RATIO = 0.32;
@@ -290,6 +297,12 @@
         }, speed);
         typewriterHandles.set(el, id);
       });
+    }
+
+    function privateThoughtSpeedMs(text) {
+      const len = spaceEmDashes(text || "").length;
+      if (!len) return TYPEWRITER_MS_SECONDARY;
+      return Math.max(1, Math.min(TYPEWRITER_MS_SECONDARY, Math.floor(PRIVATE_THOUGHT_MAX_MS / len)));
     }
 
     const REFLECTION_FIELD = {
@@ -523,6 +536,7 @@
     function setDownloadReady(visible) {
       if (!downloadSession) return;
       downloadSession.disabled = !visible;
+      if (shareSession) shareSession.disabled = !visible;
     }
 
     function revealDownload() {
@@ -595,6 +609,38 @@
         setStatus(t("errorDownload"), "err");
       } finally {
         downloadSession.disabled = false;
+      }
+    }
+
+    async function createShareUrl() {
+      if (!sessionTranscriptFile) throw new Error("No transcript file");
+      await syncSessionCheckpoint();
+      const res = await apiFetch(
+        "/api/transcript/" + encodeURIComponent(sessionTranscriptFile) + "/share",
+        { method: "POST" }
+      );
+      const data = await readJsonResponse(res);
+      return data.share_url || "";
+    }
+
+    async function shareSessionPage() {
+      if (!shareSession || !shareNotice) return;
+      shareSession.disabled = true;
+      shareNotice.classList.add("hidden");
+      try {
+        const url = await createShareUrl();
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(url);
+          shareNotice.textContent = t("shareCopied");
+        } else {
+          shareNotice.textContent = url;
+        }
+        shareNotice.classList.remove("hidden");
+      } catch (_err) {
+        shareNotice.textContent = t("shareError");
+        shareNotice.classList.remove("hidden");
+      } finally {
+        shareSession.disabled = !sessionTranscriptFile;
       }
     }
 
@@ -969,7 +1015,10 @@
         card.classList.add("thought-typing");
         setCouncilSpeaking(memberId);
         anchorBlock(card);
-        await typeInto(typed, text, { onStep: keepActiveAboveThreshold });
+        await typeInto(typed, text, {
+          speedMs: privateThoughtSpeedMs(text),
+          onStep: keepActiveAboveThreshold,
+        });
         card.classList.remove("thought-typing");
       }
       pulseAllListening();
@@ -1169,6 +1218,10 @@
       deactivateScrollPad();
       log.innerHTML = "";
       if (sessionExport) sessionExport.classList.add("hidden");
+      if (shareNotice) {
+        shareNotice.textContent = "";
+        shareNotice.classList.add("hidden");
+      }
       finalBox.classList.add("hidden");
       finalQ.textContent = "";
       setDownloadReady(false);
@@ -1326,6 +1379,9 @@
 
     if (downloadSession) {
       downloadSession.addEventListener("click", downloadSessionHtml);
+    }
+    if (shareSession) {
+      shareSession.addEventListener("click", shareSessionPage);
     }
 
     function toggleCouncilCard(card) {
