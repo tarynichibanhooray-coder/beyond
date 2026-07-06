@@ -162,11 +162,16 @@
       persistLocale(q);
       return q;
     }
+
+    var langs = (global.navigator.languages || []).concat([global.navigator.language]);
+    // If Spanish appears anywhere in browser language settings, honor it.
+    for (var i = 0; i < langs.length; i += 1) {
+      if (normalizeLocale(langs[i]) === "es") return "es";
+    }
+
     var saved = storedLocale();
     if (saved) return saved;
 
-    // Browser preferred languages should outrank UI language.
-    var langs = (global.navigator.languages || []).concat([global.navigator.language]);
     for (var i = 0; i < langs.length; i += 1) {
       var loc = normalizeLocale(langs[i]);
       if (loc) return loc;

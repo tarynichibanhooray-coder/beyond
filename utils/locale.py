@@ -141,10 +141,13 @@ EXPORT_UI: dict[Locale, dict[str, str]] = {
 def resolve_locale(accept_language: str | None) -> Locale:
     if not accept_language:
         return "en"
+    # Prefer Spanish if it appears anywhere in the browser's language settings.
     for part in accept_language.split(","):
         tag = part.split(";")[0].strip().lower()
         if tag.startswith("es"):
             return "es"
+    for part in accept_language.split(","):
+        tag = part.split(";")[0].strip().lower()
         if tag.startswith("en"):
             return "en"
     return "en"
