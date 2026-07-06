@@ -113,13 +113,13 @@
 
     <section id="sessionExport" class="session-export hidden">
       <div class="session-export-actions">
-        <button type="button" id="downloadSession" class="btn download-btn" data-i18n="downloadConversation">Download conversation</button>
-        <button type="button" id="shareSession" class="btn ghost" data-i18n="shareConversation">Share page</button>
+        <button type="button" id="downloadSession" class="btn download-btn" data-i18n="downloadConversation">Download HTML</button>
+        <button type="button" id="shareSession" class="btn ghost" data-i18n="shareConversation">Get link</button>
       </div>
       <p id="shareNotice" class="export-notice hidden" aria-live="polite"></p>
     </section>
   </main>
-  <script src="/static/i18n.js?v=4"></script>
+  <script src="/static/i18n.js?v=5"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -169,6 +169,7 @@
     const TYPEWRITER_MS = 35;
     const TYPEWRITER_MS_SECONDARY = 29;
     const PRIVATE_THOUGHT_MAX_MS = 600;
+    const PRIVATE_THOUGHT_TICK_MS = 16;
     const SPEAKER_PAUSE_MS = 2000;
     const INITIAL_SESSION_SEC = 180;
     const READING_LINE_RATIO = 0.32;
@@ -284,10 +285,11 @@
       el.classList.add("typing");
       let i = 0;
       const speed = opts.speedMs != null ? opts.speedMs : TYPEWRITER_MS;
+      const step = opts.stepChars != null ? opts.stepChars : 1;
       const onStep = opts.onStep;
       return new Promise((resolve) => {
         const id = setInterval(() => {
-          i += 1;
+          i += step;
           el.textContent = full.slice(0, i);
           if (onStep) onStep(el);
           if (i >= full.length) {
@@ -299,10 +301,10 @@
       });
     }
 
-    function privateThoughtSpeedMs(text) {
+    function privateThoughtCharsPerTick(text) {
       const len = spaceEmDashes(text || "").length;
-      if (!len) return TYPEWRITER_MS_SECONDARY;
-      return Math.max(1, Math.min(TYPEWRITER_MS_SECONDARY, Math.floor(PRIVATE_THOUGHT_MAX_MS / len)));
+      if (!len) return 1;
+      return Math.max(1, Math.ceil(len / (PRIVATE_THOUGHT_MAX_MS / PRIVATE_THOUGHT_TICK_MS)));
     }
 
     const REFLECTION_FIELD = {
@@ -1016,7 +1018,8 @@
         setCouncilSpeaking(memberId);
         anchorBlock(card);
         await typeInto(typed, text, {
-          speedMs: privateThoughtSpeedMs(text),
+          speedMs: PRIVATE_THOUGHT_TICK_MS,
+          stepChars: privateThoughtCharsPerTick(text),
           onStep: keepActiveAboveThreshold,
         });
         card.classList.remove("thought-typing");
