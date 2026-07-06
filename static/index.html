@@ -165,6 +165,7 @@
     let countdownId = null;
     let timerExpired = false;
     let allowFinalSubmit = false;
+    let completionCommitted = false;
     let answerLocked = false;
     const TYPEWRITER_MS = 35;
     const TYPEWRITER_MS_SECONDARY = 29;
@@ -565,19 +566,19 @@
       timerExpired = true;
       stopCountdown();
       syncTimer(0);
-      await syncSessionCheckpoint();
-      revealDownload();
       const draft = answer.value.trim();
-      if (draft) {
+      if (completionCommitted || draft) {
+        completionCommitted = true;
         allowFinalSubmit = true;
         answer.disabled = false;
         answer.readOnly = false;
-      } else {
-        allowFinalSubmit = false;
-        answerLocked = true;
-        answer.disabled = true;
-        answer.readOnly = true;
+        return;
       }
+      await syncSessionCheckpoint();
+      allowFinalSubmit = false;
+      answerLocked = true;
+      answer.disabled = true;
+      answer.readOnly = true;
     }
 
     async function downloadSessionHtml() {
@@ -1184,7 +1185,7 @@
         activateScrollPad();
         await appendFeedQuestion(currentQuestion, true);
         qa.classList.remove("hidden");
-        if (!timerExpired) {
+        if (!timerExpired || completionCommitted) {
           answer.disabled = false;
         } else if (allowFinalSubmit) {
           answer.disabled = false;
@@ -1202,7 +1203,7 @@
       endDeliberation();
       setStatus("", "");
       allowFinalSubmit = false;
-      if (timerExpired) {
+      if (timerExpired && !completionCommitted) {
         answerLocked = true;
         answer.disabled = true;
         qa.classList.add("hidden");
@@ -1232,6 +1233,7 @@
       remainingSec = null;
       timerExpired = false;
       allowFinalSubmit = false;
+      completionCommitted = false;
       answerLocked = false;
       renderTimer();
       refreshUsage();
@@ -1314,7 +1316,7 @@
       if (ev.key !== "Enter" || ev.shiftKey || ev.isComposing) return;
       ev.preventDefault();
       if (!sessionId || answerLocked) return;
-      if (timerExpired && !allowFinalSubmit) return;
+      if (timerExpired && !allowFinalSubmit && !completionCommitted) return;
       if (answer.disabled) return;
       const text = answer.value.trim();
       if (!text) return;
@@ -1322,16 +1324,20 @@
     });
 
     answer.addEventListener("input", () => {
-      if (!timerExpired || allowFinalSubmit) return;
+      if (answer.value.trim()) {
+        completionCommitted = true;
+      }
+      if (!timerExpired || allowFinalSubmit || completionCommitted) return;
       answer.value = "";
     });
 
     answerForm.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       if (!sessionId || answerLocked) return;
-      if (timerExpired && !allowFinalSubmit) return;
+      if (timerExpired && !allowFinalSubmit && !completionCommitted) return;
       const text = answer.value.trim();
       if (!text) return;
+      completionCommitted = true;
       answer.disabled = true;
       beginDeliberation();
       await appendFeedAnswer(text);
@@ -1366,7 +1372,7 @@
           endDeliberation();
           setStatus(t("errorCheckServer"), "err");
           showInlineError(msg);
-          if (timerExpired && answer.value.trim()) {
+          if (timerExpired && (answer.value.trim() || completionCommitted)) {
             allowFinalSubmit = true;
             answerLocked = false;
             answer.disabled = false;

@@ -172,3 +172,5 @@ def test_answer_allowed_after_timer_expires():
     )
     assert turn.status_code == 200
     assert turn.json()["turn"] == 1
+    assert turn.json()["done"] is False
+    assert turn.json()["next_question"]

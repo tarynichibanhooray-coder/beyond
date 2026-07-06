@@ -262,7 +262,7 @@ async def _finalize_turn(
     state.sm.note_current_question(next_q)
 
     remaining = state.sm.remaining()
-    done = remaining <= 0 or state.turn >= 3
+    done = state.turn >= 3
 
     final_question = None
     reasoning = None
