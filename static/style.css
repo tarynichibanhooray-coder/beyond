@@ -326,16 +326,15 @@ body {
   box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.55);
   line-height: 1.45;
   min-width: 9.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.12rem;
-}
-
-.token-row {
   display: grid;
   grid-template-columns: 2.85rem minmax(2.5rem, max-content) auto 2.85rem minmax(2.5rem, max-content);
   column-gap: 0.2rem;
+  row-gap: 0.12rem;
   align-items: baseline;
+}
+
+.token-row {
+  display: contents;
 }
 
 .tok-label {
