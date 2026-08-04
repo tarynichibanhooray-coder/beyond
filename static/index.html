@@ -167,6 +167,7 @@
     let allowFinalSubmit = false;
     let completionCommitted = false;
     let answerLocked = false;
+    let pendingQuestionTurn = null;
     const TYPEWRITER_MS = 35;
     const TYPEWRITER_MS_SECONDARY = 29;
     const PRIVATE_THOUGHT_MAX_MS = 600;
@@ -695,6 +696,7 @@
       sessionTranscriptFile = data.sessionTranscriptFile || null;
       if (data.qaVisible && qa) qa.classList.remove("hidden");
       currentQuestion = data.currentQuestion || null;
+      pendingQuestionTurn = log.querySelector(".turn-pending-question");
       syncAnswerPrompt();
       return true;
     }
@@ -715,11 +717,11 @@
       answer.setAttribute("aria-label", t("responseTo", { question: currentQuestion }));
     }
 
-    async function appendFeedQuestion(text, animate) {
+    async function appendFeedQuestion(text, animate, title, parentEl) {
       const block = document.createElement("article");
       block.className = "feed-question";
-      block.innerHTML = "<h3>" + escapeHtml(t("question")) + "</h3><p class=\"qtext\"></p>";
-      log.appendChild(block);
+      block.innerHTML = "<h3>" + escapeHtml(title || t("question")) + "</h3><p class=\"qtext\"></p>";
+      (parentEl || log).appendChild(block);
       const el = block.querySelector(".qtext");
       if (animate) {
         anchorBlock(block);
@@ -731,11 +733,11 @@
       return block;
     }
 
-    async function appendFeedAnswer(text) {
+    async function appendFeedAnswer(text, parentEl) {
       const el = document.createElement("p");
       el.className = "feed-answer";
       el.textContent = spaceEmDashes(text);
-      log.appendChild(el);
+      (parentEl || log).appendChild(el);
       saveSessionBackup();
     }
 
@@ -955,12 +957,46 @@
     }
 
     function createTurnShell() {
+      if (pendingQuestionTurn && pendingQuestionTurn.isConnected) {
+        const turn = pendingQuestionTurn;
+        pendingQuestionTurn = null;
+        turn.classList.remove("turn-pending-question");
+        return turn;
+      }
       const turnNum = log.querySelectorAll(".turn").length + 1;
       const turn = document.createElement("div");
       turn.className = "turn";
       turn.innerHTML = "<h2 class=\"turn-title\">" + turnRoman(turnNum) + "</h2>";
       log.appendChild(turn);
       return turn;
+    }
+
+    function createPendingQuestionTurn() {
+      const turnNum = log.querySelectorAll(".turn").length + 1;
+      const turn = document.createElement("div");
+      turn.className = "turn turn-pending-question";
+      turn.innerHTML = "<h2 class=\"turn-title\">" + turnRoman(turnNum) + "</h2>";
+      log.appendChild(turn);
+      pendingQuestionTurn = turn;
+      return turn;
+    }
+
+    async function appendNextQuestionChapter(data) {
+      if (!data.next_question) return;
+      const who =
+        data.chosen_asker_display ||
+        getSpeakerLabel(data.chosen_asker) ||
+        data.chosen_asker ||
+        t("council");
+      const turn = createPendingQuestionTurn();
+      setCouncilSpeaking(data.chosen_asker);
+      setAuraForSpeaker(data.chosen_asker);
+      await appendFeedQuestion(
+        data.next_question,
+        true,
+        t("askerQuestionForYou", { name: who }),
+        turn
+      );
     }
 
     function conversationShell() {
@@ -1115,26 +1151,7 @@
       if (data.done) {
         endDeliberation();
         saveSessionBackup();
-        return;
       }
-      if (!data.next_question) return;
-      const who = data.chosen_asker_display || data.chosen_asker || t("council");
-      await pauseBetweenSpeakers();
-      const forgedEl = document.createElement("article");
-      forgedEl.className = "forged";
-      forgedEl.innerHTML =
-        "<h3>" + escapeHtml(t("asksNext", { name: who })) + "</h3>" +
-        "<p class=\"q-next typed\"></p>";
-      turnEl.appendChild(forgedEl);
-      setActiveTurnSection(turnEl, forgedEl);
-      setCouncilSpeaking(data.chosen_asker);
-      anchorBlock(forgedEl);
-      await typeInto(
-        forgedEl.querySelector(".q-next"),
-        data.next_question || "",
-        { onStep: keepActiveAboveThreshold }
-      );
-      saveSessionBackup();
     }
 
     async function finishTurn(data, turnEl) {
@@ -1200,6 +1217,8 @@
         throw new Error("No next question returned by council");
       }
       syncAnswerPrompt();
+      await pauseBetweenSpeakers();
+      await appendNextQuestionChapter(data);
       endDeliberation();
       setStatus("", "");
       allowFinalSubmit = false;
@@ -1235,6 +1254,7 @@
       allowFinalSubmit = false;
       completionCommitted = false;
       answerLocked = false;
+      pendingQuestionTurn = null;
       renderTimer();
       refreshUsage();
       councilIntro.classList.remove("session-active");
@@ -1340,7 +1360,10 @@
       completionCommitted = true;
       answer.disabled = true;
       beginDeliberation();
-      await appendFeedAnswer(text);
+      const answerParent = pendingQuestionTurn && pendingQuestionTurn.isConnected
+        ? pendingQuestionTurn
+        : null;
+      await appendFeedAnswer(text, answerParent);
       const turnEl = createTurnShell();
       answer.value = "";
       qa.classList.add("hidden");
