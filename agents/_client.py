@@ -47,17 +47,49 @@ def get_anthropic_client():
     return Anthropic(api_key=settings.anthropic_api_key)
 
 
+def _first_json_object(text: str) -> str | None:
+    start = text.find("{")
+    while start != -1:
+        depth = 0
+        in_string = False
+        escape = False
+        for idx in range(start, len(text)):
+            ch = text[idx]
+            if in_string:
+                if escape:
+                    escape = False
+                elif ch == "\\":
+                    escape = True
+                elif ch == '"':
+                    in_string = False
+                continue
+            if ch == '"':
+                in_string = True
+            elif ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : idx + 1].strip()
+        start = text.find("{", start + 1)
+    return None
+
+
 def extract_json_block(text: str) -> str:
     text = text.strip()
     m = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
     if m:
-        return m.group(1).strip()
-    return text
+        text = m.group(1).strip()
+    return _first_json_object(text) or text
 
 
 def parse_json_response(text: str, model: type[TModel]) -> TModel:
     raw = extract_json_block(text)
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        snippet = raw[:160].replace("\n", " ").strip() or "<empty>"
+        raise ValueError(f"Model returned invalid JSON for {model.__name__}: {snippet}") from exc
     data = coerce_reflect_payload(model, data)
     try:
         return model.model_validate(data)

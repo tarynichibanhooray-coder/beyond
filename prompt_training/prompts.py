@@ -101,9 +101,11 @@ The question must be philosophically therapeutic at its core: helping the partic
 
 If chosen_asker is arabi: the next_question must use plain everyday English only—no specialized terms (tajalli, barzakh, khayal, etc.). Anyone should understand it on first reading.
 
-Output ONLY valid JSON:
-- chosen_asker ("arabi" | "blake" | "morrison" | "kierkegaard")
-- next_question (string)
+Output ONLY this JSON object, with no prose and no markdown:
+{
+  "chosen_asker": "arabi",
+  "next_question": "string"
+}
 """)
 
 DELTA_FINAL_SYSTEM = build_system("""

@@ -96,6 +96,24 @@ def test_kierkegaard_reflect_coerces_mis_keyed_json():
     assert result2.color_intensity == 63
 
 
+def test_parse_json_response_extracts_prose_wrapped_object():
+    from agents._client import parse_json_response
+    from models import CouncilDecision
+
+    raw = """I would choose Kierkegaard here.
+
+    {
+      "chosen_asker": "kierkegaard",
+      "next_question": "What would you begin if you trusted one longing enough to let it lead?"
+    }
+    """
+
+    result = parse_json_response(raw, CouncilDecision)
+
+    assert result.chosen_asker == "kierkegaard"
+    assert result.next_question.startswith("What would you begin")
+
+
 def test_confusion_transcript_detection():
     from utils.question_clarity import is_confusion_transcript
 
