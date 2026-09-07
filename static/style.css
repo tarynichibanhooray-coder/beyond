@@ -311,6 +311,7 @@ body {
   min-width: 5.5rem;
   text-align: center;
   flex-shrink: 0;
+  opacity: 0.82;
 }
 
 .token-meter {
