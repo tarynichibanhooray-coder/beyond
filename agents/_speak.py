@@ -3,17 +3,32 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from utils.locale import apply_locale_system, normalize_locale
 
-from agents._client import create_message, get_anthropic_client, parse_json_response
+from agents._client import (
+    create_message,
+    extract_json_block,
+    get_anthropic_client,
+    parse_json_response,
+)
 from config import settings
 from models import ConversationLine, TurnContext
 
 
 class SpeakLine(BaseModel):
     line: str
+
+
+def parse_speak_line(text: str) -> str:
+    try:
+        return parse_json_response(text, SpeakLine).line.strip()
+    except (ValueError, ValidationError):
+        line = extract_json_block(text).strip()
+        if line:
+            return line
+        raise
 
 
 def _reflections_payload(
@@ -65,4 +80,4 @@ def call_speak(
         messages=[{"role": "user", "content": user_content}],
     )
     text = msg.content[0].text
-    return parse_json_response(text, SpeakLine).line.strip()
+    return parse_speak_line(text)

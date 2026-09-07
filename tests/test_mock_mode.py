@@ -114,6 +114,14 @@ def test_parse_json_response_extracts_prose_wrapped_object():
     assert result.next_question.startswith("What would you begin")
 
 
+def test_parse_speak_line_accepts_plain_text():
+    from agents._speak import parse_speak_line
+
+    raw = "I hear the purpose already moving through what you said."
+
+    assert parse_speak_line(raw) == raw
+
+
 def test_confusion_transcript_detection():
     from utils.question_clarity import is_confusion_transcript
 
