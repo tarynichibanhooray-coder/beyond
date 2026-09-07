@@ -16,6 +16,8 @@ services:
         value: "false"
       - key: PROMPT_CACHE
         value: "true"
+      - key: PYTHON_VERSION
+        value: "3.13.0"
       - key: TOKEN_BUDGET
         value: "600000"
       - key: ANTHROPIC_MODEL
