@@ -103,6 +103,9 @@
       <form id="answerForm" class="abox">
         <label class="acap" for="answer" data-i18n="response">Response</label>
         <textarea id="answer" rows="3" data-i18n-placeholder="responsePlaceholder" placeholder="Type your response…" autocomplete="off"></textarea>
+        <div class="answer-actions">
+          <button type="submit" class="btn submit-answer" data-i18n="submitAnswer">Submit</button>
+        </div>
       </form>
     </section>
 
@@ -119,6 +122,11 @@
       <p id="shareNotice" class="export-notice hidden" aria-live="polite"></p>
     </section>
   </main>
+  <div id="sessionNotice" class="session-notice hidden" role="status" aria-live="polite">
+    <div class="session-notice-card" data-i18n="sessionNotice">
+      You will be able to read the full conversation when your session is completed
+    </div>
+  </div>
   <script src="/static/i18n.js?v=6"></script>
   <script>
     function t(key, vars) {
@@ -155,6 +163,7 @@
     const tokOut = document.getElementById("tok-out");
     const tokUsed = document.getElementById("tok-used");
     const tokRem = document.getElementById("tok-rem");
+    const sessionNotice = document.getElementById("sessionNotice");
 
     let sessionId = null;
     let sessionTranscriptFile = null;
@@ -163,15 +172,17 @@
     let remainingSec = null;
     const SESSION_BACKUP_KEY = "before-session-backup";
     let countdownId = null;
+    let sessionNoticeId = null;
     let timerExpired = false;
     let allowFinalSubmit = false;
     let completionCommitted = false;
     let answerLocked = false;
     let pendingQuestionTurn = null;
     const TYPEWRITER_MS = 35;
+    const CONVERSATION_TYPEWRITER_MS = 18;
     const TYPEWRITER_MS_SECONDARY = 29;
-    const PRIVATE_THOUGHT_MAX_MS = 600;
-    const PRIVATE_THOUGHT_TICK_MS = 16;
+    const PRIVATE_THOUGHT_MAX_MS = 300;
+    const PRIVATE_THOUGHT_TICK_MS = 8;
     const SPEAKER_PAUSE_MS = 2000;
     const INITIAL_SESSION_SEC = 180;
     const READING_LINE_RATIO = 0.32;
@@ -202,6 +213,25 @@
 
     function waitMs(ms) {
       return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    function showSessionNotice() {
+      if (!sessionNotice) return;
+      sessionNotice.classList.remove("hidden");
+      if (sessionNoticeId != null) clearTimeout(sessionNoticeId);
+      sessionNoticeId = setTimeout(() => {
+        sessionNotice.classList.add("hidden");
+        sessionNoticeId = null;
+      }, 3000);
+    }
+
+    function hideSessionNotice() {
+      if (!sessionNotice) return;
+      sessionNotice.classList.add("hidden");
+      if (sessionNoticeId != null) {
+        clearTimeout(sessionNoticeId);
+        sessionNoticeId = null;
+      }
     }
 
     function scrollTop() {
@@ -307,6 +337,13 @@
       const len = spaceEmDashes(text || "").length;
       if (!len) return 1;
       return Math.max(1, Math.ceil(len / (PRIVATE_THOUGHT_MAX_MS / PRIVATE_THOUGHT_TICK_MS)));
+    }
+
+    function firstSentences(text, maxSentences) {
+      const cleaned = String(text || "").trim();
+      if (!cleaned) return "";
+      const sentences = cleaned.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g) || [cleaned];
+      return sentences.slice(0, maxSentences).join(" ").replace(/\s+/g, " ").trim();
     }
 
     const REFLECTION_FIELD = {
@@ -879,6 +916,7 @@
       qa.classList.add("hidden");
       qa.classList.remove("responding");
       answer.disabled = true;
+      hideSessionNotice();
       run.disabled = false;
       setStatus("", "");
       saveSessionBackup();
@@ -1046,7 +1084,7 @@
         const field = REFLECTION_FIELD[memberId];
         const fromMap = reflections[memberId] || {};
         const fromLegacy = event[memberId + "_reflection"] || {};
-        const text = (field && (fromMap[field] || fromLegacy[field])) || "";
+        const text = firstSentences((field && (fromMap[field] || fromLegacy[field])) || "", 2);
         const added = appendThoughtCard(shell, memberId);
         const card = added.card;
         const typed = added.typed;
@@ -1115,7 +1153,10 @@
         lines.appendChild(line);
         const textEl = line.querySelector(".line-text");
         anchorBlock(line);
-        await typeInto(textEl, full, { onStep: keepActiveAboveThreshold });
+        await typeInto(textEl, full, {
+          speedMs: CONVERSATION_TYPEWRITER_MS,
+          onStep: keepActiveAboveThreshold,
+        });
         line.classList.remove("line-speaking");
         saveSessionBackup();
         return;
@@ -1255,6 +1296,7 @@
       completionCommitted = false;
       answerLocked = false;
       pendingQuestionTurn = null;
+      hideSessionNotice();
       renderTimer();
       refreshUsage();
       councilIntro.classList.remove("session-active");
@@ -1297,6 +1339,7 @@
     run.addEventListener("click", async () => {
       clear();
       run.disabled = true;
+      showSessionNotice();
       setStatus(t("starting"), "run");
       try {
         const res = await apiFetch("/api/session/start", { method: "POST" });
@@ -1355,6 +1398,7 @@
       ev.preventDefault();
       if (!sessionId || answerLocked) return;
       if (timerExpired && !allowFinalSubmit && !completionCommitted) return;
+      if (answer.disabled) return;
       const text = answer.value.trim();
       if (!text) return;
       completionCommitted = true;

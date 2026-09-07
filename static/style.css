@@ -438,7 +438,9 @@ body {
   }
 
   .head-metrics-fixed {
-    position: static;
+    position: fixed;
+    top: 0.75rem;
+    right: 0.75rem;
     flex: 0 0 auto;
   }
 
@@ -449,7 +451,7 @@ body {
   }
 
   .token-meter {
-    order: 1;
+    order: 2;
     font-size: 0.58rem;
     min-width: 0;
     width: max-content;
@@ -467,7 +469,7 @@ body {
   }
 
   .head-clock {
-    order: 2;
+    order: 1;
     font-size: 1.05rem;
     min-width: 4.25rem;
     padding: 0.2rem 0.4rem;
@@ -884,6 +886,19 @@ body {
   border-color: rgba(232, 184, 109, 0.45);
 }
 
+.answer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.6rem;
+}
+
+.submit-answer {
+  padding: 0.38rem 0.85rem;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
 .arow {
   display: flex;
   gap: 0.6rem;
@@ -926,6 +941,28 @@ body {
 
 .status.err {
   color: #f08080;
+}
+
+.session-notice {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  pointer-events: none;
+}
+
+.session-notice-card {
+  max-width: min(90vw, 28rem);
+  padding: 1rem 1.1rem;
+  border: 1px solid rgba(94, 200, 212, 0.35);
+  border-radius: 10px;
+  background: rgba(20, 20, 27, 0.94);
+  box-shadow: 0 1.25rem 3rem rgba(0, 0, 0, 0.35);
+  color: var(--text);
+  text-align: center;
+  line-height: 1.45;
 }
 
 .log {
@@ -1137,14 +1174,16 @@ body {
 .thought {
   border-radius: 8px;
   padding: 0.6rem 0.7rem;
-  border: 1px solid #2a2a32;
-  background: var(--panel);
+  border: 1px solid rgba(106, 103, 112, 0.28);
+  background: rgba(24, 24, 31, 0.62);
+  color: #8a8790;
 }
 
 .thought p {
   margin: 0.35rem 0 0;
   font-size: 0.82rem;
   line-height: 1.4;
+  color: #8a8790;
 }
 
 .thought.arabi strong {
@@ -1161,6 +1200,10 @@ body {
 
 .thought.kierkegaard strong {
   color: var(--del);
+}
+
+.thought strong {
+  color: #8a8790;
 }
 
 .forged .q-next {
