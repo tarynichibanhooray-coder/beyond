@@ -181,6 +181,59 @@ def test_export_filename_uses_most_recent_question():
     assert export_filename_from_history(history) == "what-truth-are-you-already.html"
 
 
+@pytest.mark.asyncio
+async def test_sse_keepalive_fills_silent_gaps():
+    import asyncio
+
+    import app as app_mod
+
+    async def slow_source():
+        yield 'data: {"type": "phase"}\n\n'
+        await asyncio.sleep(0.5)
+        yield 'data: {"type": "speak"}\n\n'
+
+    original = app_mod.SSE_HEARTBEAT_SECONDS
+    app_mod.SSE_HEARTBEAT_SECONDS = 0.1
+    try:
+        chunks = [chunk async for chunk in app_mod._sse_keepalive(slow_source())]
+    finally:
+        app_mod.SSE_HEARTBEAT_SECONDS = original
+
+    assert [c for c in chunks if c.startswith("data:")] == [
+        'data: {"type": "phase"}\n\n',
+        'data: {"type": "speak"}\n\n',
+    ]
+    assert sum(1 for c in chunks if c.startswith(": keepalive")) >= 2
+
+
+@pytest.mark.asyncio
+async def test_sse_keepalive_propagates_source_errors():
+    import app as app_mod
+
+    async def boom():
+        yield 'data: {"type": "phase"}\n\n'
+        raise RuntimeError("agent exploded")
+
+    with pytest.raises(RuntimeError, match="agent exploded"):
+        async for _ in app_mod._sse_keepalive(boom()):
+            pass
+
+
+def test_index_and_code_assets_are_not_cached():
+    import app as app_mod
+
+    client = TestClient(app_mod.app)
+    no_store = "no-store, max-age=0, must-revalidate"
+
+    assert client.get("/").headers["cache-control"] == no_store
+    assert client.get("/static/style.css").headers["cache-control"] == no_store
+    assert client.get("/static/i18n.js").headers["cache-control"] == no_store
+    # Images stay cacheable so every page load does not refetch them.
+    assert "no-store" not in client.get("/static/og-in-this-time-before.png").headers.get(
+        "cache-control", ""
+    )
+
+
 def test_answer_allowed_after_timer_expires():
     import time
 

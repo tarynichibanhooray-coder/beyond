@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="In This Time Before" />
   <meta name="twitter:description" content="A three-minute council with Ibn Arabi, Toni Morrison, and Søren Kierkegaard." />
   <meta name="twitter:image" content="https://inthistimebefore.onrender.com/static/og-in-this-time-before.png" />
-  <link rel="stylesheet" href="/static/style.css?v=12" />
+  <link rel="stylesheet" href="/static/style.css?v=13" />
 </head>
 <body>
   <div id="aura" class="idle" aria-hidden="true">
@@ -93,7 +93,7 @@
     </section>
 
     <section class="controls">
-      <button type="button" id="run" class="btn" data-i18n="startSession" onclick="window.__beforeStartClicked = true; this.disabled = true; this.classList.add('is-busy'); this.setAttribute('aria-busy', 'true'); this.textContent = 'Starting…';">Start session</button>
+      <button type="button" id="run" class="btn" data-i18n="startSession" onclick="window.__beforeStartClicked = true; this.disabled = true; this.classList.add('is-busy'); this.setAttribute('aria-busy', 'true'); this.textContent = window.BeforeI18n ? BeforeI18n.t('starting') : 'Starting…';">Start session</button>
       <span id="status" class="status idle" data-i18n="idle">Idle</span>
     </section>
 
@@ -134,7 +134,7 @@
       <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
     </div>
   </div>
-  <script src="/static/i18n.js?v=12"></script>
+  <script src="/static/i18n.js?v=13"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -1383,7 +1383,6 @@
       startCountdown(INITIAL_SESSION_SEC);
       setStatus(t("starting"), "run");
       try {
-        await new Promise((resolve) => requestAnimationFrame(resolve));
         const res = await apiFetch("/api/session/start", { method: "POST" });
         const data = await readJsonResponse(res);
         sessionId = data.session_id;

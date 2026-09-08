@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import secrets
 import time
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 
 from fastapi import FastAPI, Header, HTTPException
@@ -35,18 +37,21 @@ ROOT = Path(__file__).resolve().parent
 
 app = FastAPI(title="Before — demo")
 
-app.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+NO_STORE = "no-store, max-age=0, must-revalidate"
+
+
+class CodeAssetStaticFiles(StaticFiles):
+    """Serve versioned code assets uncached so a stale copy can never linger."""
+
+    async def get_response(self, path: str, scope):
+        response = await super().get_response(path, scope)
+        if path.endswith((".html", ".css", ".js")):
+            response.headers["Cache-Control"] = NO_STORE
+        return response
+
+
+app.mount("/static", CodeAssetStaticFiles(directory=ROOT / "static"), name="static")
 sync_server_usage_from_daily()
-
-
-@app.middleware("http")
-async def no_cache_live_assets(request, call_next):
-    response = await call_next(request)
-    if request.url.path == "/" or request.url.path.startswith("/static/"):
-        response.headers["Cache-Control"] = "no-store, max-age=0, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-    return response
 
 
 @dataclass
@@ -160,6 +165,41 @@ def _fallback_question(transcript: str, locale: str = "en") -> str:
 
 def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
+
+
+SSE_HEARTBEAT_SECONDS = 10.0
+
+
+async def _sse_keepalive(source: AsyncIterator[str]) -> AsyncIterator[str]:
+    """Emit SSE comments while agents think so idle connections are not dropped."""
+    queue: asyncio.Queue = asyncio.Queue()
+    finished = object()
+
+    async def pump() -> None:
+        try:
+            async for chunk in source:
+                await queue.put(chunk)
+        except BaseException as exc:  # re-raised by the consumer loop below
+            await queue.put(exc)
+        finally:
+            await queue.put(finished)
+
+    task = asyncio.create_task(pump())
+    try:
+        while True:
+            try:
+                chunk = await asyncio.wait_for(queue.get(), timeout=SSE_HEARTBEAT_SECONDS)
+            except TimeoutError:
+                yield ": keepalive\n\n"
+                continue
+            if chunk is finished:
+                return
+            if isinstance(chunk, BaseException):
+                raise chunk
+            yield chunk
+    finally:
+        task.cancel()
+        await source.aclose()
 
 
 def _validate_transcript_filename(filename: str) -> Path:
@@ -323,7 +363,10 @@ async def _finalize_turn(
 
 @app.get("/")
 async def index() -> FileResponse:
-    return FileResponse(ROOT / "static" / "index.html")
+    return FileResponse(
+        ROOT / "static" / "index.html",
+        headers={"Cache-Control": NO_STORE},
+    )
 
 
 @app.get("/api/council")
@@ -511,7 +554,7 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
             state.turn_busy = False
 
     return StreamingResponse(
-        generate(),
+        _sse_keepalive(generate()),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

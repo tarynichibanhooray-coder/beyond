@@ -443,6 +443,10 @@ body {
     top: 0.75rem;
     right: 0.75rem;
     flex: 0 0 auto;
+    padding: 0.3rem;
+    border-radius: 9px;
+    background: #08080c;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.6);
   }
 
   .head-metrics-cluster {
