@@ -895,13 +895,27 @@ body {
   position: absolute;
   right: 0.55rem;
   bottom: 0.55rem;
+  z-index: 3;
 }
 
 .submit-answer {
-  padding: 0.38rem 0.85rem;
-  font-size: 0.72rem;
+  min-width: 5.25rem;
+  min-height: 2.35rem;
+  padding: 0.45rem 0.95rem;
+  border-color: rgba(214, 216, 226, 0.45);
+  background: rgba(214, 216, 226, 0.16);
+  box-shadow: 0 0 0 1px rgba(214, 216, 226, 0.08), 0 10px 24px rgba(0, 0, 0, 0.24);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.submit-answer:hover,
+.submit-answer:focus-visible {
+  border-color: rgba(232, 184, 109, 0.7);
+  background: rgba(232, 184, 109, 0.18);
 }
 
 .arow {
