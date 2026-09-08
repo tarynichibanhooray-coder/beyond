@@ -22,7 +22,13 @@ from utils.question_clarity import is_confusion_transcript, rephrase_question
 from utils.locale import initial_question, localize_member_profiles, normalize_locale, resolve_locale
 from utils.question_limits import limit_question_sentences
 from utils.session_export import export_transcript_file
-from utils.daily_budget import assert_budget_available, daily_usage_snapshot, depleted_message, set_budget_locale
+from utils.daily_budget import (
+    assert_budget_available,
+    daily_usage_snapshot,
+    depleted_message,
+    record_completed_session,
+    set_budget_locale,
+)
 from utils.usage import log_turn_usage, server_usage, server_usage_snapshot, sync_server_usage_from_daily
 
 ROOT = Path(__file__).resolve().parent
@@ -273,6 +279,7 @@ async def _finalize_turn(
         final = await state.sm.end_session(locale=state.locale)
         final_question = limit_question_sentences(final.final_question)
         reasoning = final.reasoning
+        record_completed_session(state.sm.usage.snapshot().total_tokens)
 
     usage = _usage_payload(state.sm.usage, usage_before)
     log_turn_usage(

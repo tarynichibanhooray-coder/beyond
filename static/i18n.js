@@ -46,6 +46,9 @@
       responseTo: "Response to: {question}",
       mock: "mock",
       tokensDepleted: "The tokens are depleted. Please return tomorrow.",
+      budgetModalTitle: "Tokens depleted",
+      budgetModalMessage: "We've exceeded the AI tokens for the day. Please come again tomorrow.",
+      budgetModalClose: "OK",
     },
     es: {
       pageTitle: "Before — demo",
@@ -91,6 +94,9 @@
       responseTo: "Respuesta a: {question}",
       mock: "simulado",
       tokensDepleted: "Los tokens se han agotado. Vuelve mañana.",
+      budgetModalTitle: "Tokens agotados",
+      budgetModalMessage: "Se han agotado los tokens de IA del día. Vuelve mañana.",
+      budgetModalClose: "OK",
     },
   };
 

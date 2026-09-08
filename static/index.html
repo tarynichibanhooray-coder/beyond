@@ -127,6 +127,13 @@
       You will be able to read the full conversation when your session is completed
     </div>
   </div>
+  <div id="budgetModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="budgetModalTitle" aria-describedby="budgetModalMessage">
+    <div class="modal-card">
+      <h2 id="budgetModalTitle" data-i18n="budgetModalTitle">Tokens depleted</h2>
+      <p id="budgetModalMessage" data-i18n="budgetModalMessage">We've exceeded the AI tokens for the day. Please come again tomorrow.</p>
+      <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
+    </div>
+  </div>
   <script src="/static/i18n.js?v=6"></script>
   <script>
     function t(key, vars) {
@@ -164,6 +171,8 @@
     const tokUsed = document.getElementById("tok-used");
     const tokRem = document.getElementById("tok-rem");
     const sessionNotice = document.getElementById("sessionNotice");
+    const budgetModal = document.getElementById("budgetModal");
+    const budgetModalClose = document.getElementById("budgetModalClose");
 
     let sessionId = null;
     let sessionTranscriptFile = null;
@@ -177,6 +186,7 @@
     let allowFinalSubmit = false;
     let completionCommitted = false;
     let answerLocked = false;
+    let budgetModalDismissed = false;
     let pendingQuestionTurn = null;
     const TYPEWRITER_MS = 35;
     const CONVERSATION_TYPEWRITER_MS = 18;
@@ -829,6 +839,21 @@
       run.disabled = isBusy;
     }
 
+    function showBudgetModal(opts) {
+      if (!budgetModal) return;
+      if (budgetModalDismissed && !(opts && opts.force)) return;
+      budgetModalDismissed = false;
+      budgetModal.classList.remove("hidden");
+      if (budgetModalClose) budgetModalClose.focus();
+    }
+
+    function hideBudgetModal() {
+      if (!budgetModal) return;
+      budgetModalDismissed = true;
+      budgetModal.classList.add("hidden");
+      if (run && !run.disabled) run.focus();
+    }
+
     function formatTokens(n) {
       return BeforeI18n.formatNumber(n);
     }
@@ -886,6 +911,10 @@
       tokOut.textContent = formatTokens(outTok);
       tokUsed.textContent = formatDailyUsed(bundle);
       tokRem.textContent = formatDailyRemaining(bundle);
+      if (bundle && bundle.daily && bundle.daily.depleted && !sessionId) {
+        setStatus(t("tokensDepleted"), "err");
+        showBudgetModal();
+      }
     }
 
     async function refreshUsage() {
@@ -1381,6 +1410,7 @@
         const msg = e && e.message ? e.message : "";
         if (isTokensDepletedError(msg)) {
           setStatus(t("tokensDepleted"), "err");
+          showBudgetModal({ force: true });
         } else {
           setStatus(t("errorServer"), "err");
         }
@@ -1445,7 +1475,7 @@
         } else if (isTokensDepletedError(msg)) {
           endDeliberation();
           setStatus(t("tokensDepleted"), "err");
-          showInlineError(t("tokensDepleted"));
+          showBudgetModal({ force: true });
           run.disabled = false;
         } else {
           endDeliberation();
@@ -1471,6 +1501,19 @@
     if (shareSession) {
       shareSession.addEventListener("click", shareSessionPage);
     }
+    if (budgetModalClose) {
+      budgetModalClose.addEventListener("click", hideBudgetModal);
+    }
+    if (budgetModal) {
+      budgetModal.addEventListener("click", (ev) => {
+        if (ev.target === budgetModal) hideBudgetModal();
+      });
+    }
+    document.addEventListener("keydown", (ev) => {
+      if (ev.key === "Escape" && budgetModal && !budgetModal.classList.contains("hidden")) {
+        hideBudgetModal();
+      }
+    });
 
     function toggleCouncilCard(card) {
       if (!card) return;

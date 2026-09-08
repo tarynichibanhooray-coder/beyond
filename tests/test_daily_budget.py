@@ -55,6 +55,15 @@ def test_mock_mode_skips_depleted_check(usage_file, monkeypatch):
     assert db.is_depleted() is False
 
 
+def test_completed_session_average_persists(usage_file, monkeypatch):
+    monkeypatch.setattr("config.settings.mock_mode", False)
+    db.record_completed_session(1000)
+    db.record_completed_session(2000)
+    snapshot = db.daily_usage_snapshot(600_000)
+    assert snapshot["sessions_completed"] == 2
+    assert snapshot["average_session_tokens"] == 1500
+
+
 def test_api_blocks_start_when_depleted(usage_file, monkeypatch):
     import app as app_mod
     from fastapi.testclient import TestClient
