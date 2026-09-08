@@ -822,6 +822,13 @@
       status.className = "status " + (cls || "");
     }
 
+    function setRunBusy(isBusy) {
+      run.classList.toggle("is-busy", isBusy);
+      run.setAttribute("aria-busy", isBusy ? "true" : "false");
+      run.textContent = isBusy ? t("starting") : t("startSession");
+      run.disabled = isBusy;
+    }
+
     function formatTokens(n) {
       return BeforeI18n.formatNumber(n);
     }
@@ -1338,7 +1345,7 @@
 
     run.addEventListener("click", async () => {
       clear();
-      run.disabled = true;
+      setRunBusy(true);
       showSessionNotice();
       setStatus(t("starting"), "run");
       try {
@@ -1360,12 +1367,14 @@
           renderUsage(data.usage, mockMode);
         }
         await loadUsageForSession();
+        setRunBusy(false);
+        run.disabled = true;
         setStatus("", "");
         answer.disabled = false;
         saveSessionBackup();
         answer.focus();
       } catch (e) {
-        run.disabled = false;
+        setRunBusy(false);
         const msg = e && e.message ? e.message : "";
         if (isTokensDepletedError(msg)) {
           setStatus(t("tokensDepleted"), "err");

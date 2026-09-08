@@ -870,11 +870,15 @@ body {
   line-height: 1.45;
 }
 
+.abox {
+  position: relative;
+}
+
 .abox textarea {
   width: 100%;
   resize: vertical;
   min-height: 84px;
-  padding: 0.65rem 0.75rem;
+  padding: 0.65rem 5.2rem 2.6rem 0.75rem;
   border-radius: 8px;
   border: 1px solid #2a2a32;
   background: #121218;
@@ -888,9 +892,9 @@ body {
 }
 
 .answer-actions {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 0.6rem;
+  position: absolute;
+  right: 0.55rem;
+  bottom: 0.55rem;
 }
 
 .submit-answer {
@@ -923,6 +927,14 @@ body {
 .btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.btn.is-busy:disabled {
+  opacity: 1;
+  cursor: progress;
+  border-color: rgba(94, 200, 212, 0.45);
+  background: #20202a;
+  color: var(--del);
 }
 
 .status {
