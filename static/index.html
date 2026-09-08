@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="In This Time Before" />
   <meta name="twitter:description" content="A three-minute council with Ibn Arabi, Toni Morrison, and Søren Kierkegaard." />
   <meta name="twitter:image" content="https://inthistimebefore.onrender.com/static/og-in-this-time-before.png" />
-  <link rel="stylesheet" href="/static/style.css?v=11" />
+  <link rel="stylesheet" href="/static/style.css?v=12" />
 </head>
 <body>
   <div id="aura" class="idle" aria-hidden="true">
@@ -134,7 +134,7 @@
       <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
     </div>
   </div>
-  <script src="/static/i18n.js?v=11"></script>
+  <script src="/static/i18n.js?v=12"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -1404,6 +1404,7 @@
         await loadUsageForSession();
         setRunBusy(false);
         run.disabled = true;
+        run.textContent = t("sessionActive");
         setStatus("", "");
         answer.disabled = false;
         saveSessionBackup();
