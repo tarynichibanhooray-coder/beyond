@@ -1347,6 +1347,7 @@
       clear();
       setRunBusy(true);
       showSessionNotice();
+      startCountdown(INITIAL_SESSION_SEC);
       setStatus(t("starting"), "run");
       try {
         const res = await apiFetch("/api/session/start", { method: "POST" });
@@ -1374,6 +1375,8 @@
         saveSessionBackup();
         answer.focus();
       } catch (e) {
+        stopCountdown();
+        syncTimer(null);
         setRunBusy(false);
         const msg = e && e.message ? e.message : "";
         if (isTokensDepletedError(msg)) {
