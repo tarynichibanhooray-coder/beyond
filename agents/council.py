@@ -5,6 +5,8 @@ import json
 from collections.abc import AsyncIterator
 from typing import Any
 
+from pydantic import ValidationError
+
 from agents._client import create_message, get_anthropic_client, parse_json_response
 from agents.arabi_agent import ArabiAgent
 from agents.delta_agent import DeltaAgent
@@ -50,6 +52,22 @@ def _mock_decide(ctx: TurnContext, conversation: list[ConversationLine], roster:
         chosen_asker=chosen,
         next_question=questions[chosen],
     )
+
+
+def parse_council_decision(
+    text: str,
+    roster: list[CouncilMemberId],
+    fallback: CouncilDecision,
+) -> CouncilDecision:
+    try:
+        decision = parse_json_response(text, CouncilDecision)
+    except (ValueError, ValidationError):
+        return fallback
+    if decision.chosen_asker not in roster:
+        decision = decision.model_copy(update={"chosen_asker": roster[0]})
+    if not decision.next_question.strip():
+        return fallback
+    return decision
 
 
 class AgentCouncil:
@@ -165,14 +183,15 @@ class AgentCouncil:
                 client,
                 label="council.decide",
                 model=settings.anthropic_model,
-                max_tokens=280,
+                max_tokens=1024,
                 system=apply_locale_system(COUNCIL_DECIDE, ctx.locale),
                 messages=[{"role": "user", "content": payload}],
             )
-            decision = parse_json_response(msg.content[0].text, CouncilDecision)
-            if decision.chosen_asker not in self.roster:
-                decision = decision.model_copy(update={"chosen_asker": self.roster[0]})
-            return decision
+            return parse_council_decision(
+                msg.content[0].text,
+                self.roster,
+                _mock_decide(ctx, conversation, self.roster),
+            )
 
         return await asyncio.to_thread(_call)
 

@@ -109,6 +109,8 @@ The question must be philosophically therapeutic at its core: helping the partic
 
 If chosen_asker is arabi: the next_question must use plain everyday English only—no specialized terms (tajalli, barzakh, khayal, etc.). Anyone should understand it on first reading.
 
+Do not narrate, reflect, or quote the council. If you think first, still end with the JSON object.
+
 Output ONLY this JSON object, with no prose and no markdown:
 {
   "chosen_asker": "arabi",

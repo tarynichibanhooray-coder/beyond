@@ -114,6 +114,25 @@ def test_parse_json_response_extracts_prose_wrapped_object():
     assert result.next_question.startswith("What would you begin")
 
 
+def test_parse_council_decision_falls_back_when_model_returns_prose():
+    from agents.council import parse_council_decision
+    from models import CouncilDecision
+
+    fallback = CouncilDecision(
+        chosen_asker="morrison",
+        next_question="What story are you still telling as if it were finished?",
+    )
+    raw = (
+        "I'll work through this privately before deciding what to ask. "
+        "**Private Council Reflections:** **Arabi:** They said no."
+    )
+
+    result = parse_council_decision(raw, ["arabi", "morrison", "kierkegaard"], fallback)
+
+    assert result.chosen_asker == "morrison"
+    assert result.next_question == fallback.next_question
+
+
 def test_parse_speak_line_accepts_plain_text():
     from agents._speak import parse_speak_line
 
