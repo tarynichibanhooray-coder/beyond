@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="In This Time Before" />
   <meta name="twitter:description" content="A three-minute council with Ibn Arabi, Toni Morrison, and Søren Kierkegaard." />
   <meta name="twitter:image" content="https://inthistimebefore.onrender.com/static/og-in-this-time-before.png" />
-  <link rel="stylesheet" href="/static/style.css?v=13" />
+  <link rel="stylesheet" href="/static/style.css?v=14" />
 </head>
 <body>
   <div id="aura" class="idle" aria-hidden="true">
@@ -123,9 +123,9 @@
     </section>
   </main>
   <div id="sessionNotice" class="session-notice hidden" role="status" aria-live="polite">
-    <div class="session-notice-card" data-i18n="sessionNotice">
+    <button type="button" class="session-notice-card" id="sessionNoticeCard" data-i18n="sessionNotice">
       You will be able to read the full conversation when your session is completed
-    </div>
+    </button>
   </div>
   <div id="budgetModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="budgetModalTitle" aria-describedby="budgetModalMessage">
     <div class="modal-card">
@@ -134,7 +134,7 @@
       <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
     </div>
   </div>
-  <script src="/static/i18n.js?v=13"></script>
+  <script src="/static/i18n.js?v=14"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -171,6 +171,7 @@
     const tokUsed = document.getElementById("tok-used");
     const tokRem = document.getElementById("tok-rem");
     const sessionNotice = document.getElementById("sessionNotice");
+    const sessionNoticeCard = document.getElementById("sessionNoticeCard");
     const budgetModal = document.getElementById("budgetModal");
     const budgetModalClose = document.getElementById("budgetModalClose");
 
@@ -182,6 +183,7 @@
     const SESSION_BACKUP_KEY = "before-session-backup";
     let countdownId = null;
     let sessionNoticeId = null;
+    let sessionNoticeShown = false;
     let timerExpired = false;
     let allowFinalSubmit = false;
     let completionCommitted = false;
@@ -227,13 +229,11 @@
     }
 
     function showSessionNotice() {
-      if (!sessionNotice) return;
+      if (!sessionNotice || sessionNoticeShown) return;
+      sessionNoticeShown = true;
       sessionNotice.classList.remove("hidden");
       if (sessionNoticeId != null) clearTimeout(sessionNoticeId);
-      sessionNoticeId = setTimeout(() => {
-        sessionNotice.classList.add("hidden");
-        sessionNoticeId = null;
-      }, 3000);
+      sessionNoticeId = setTimeout(hideSessionNotice, 5500);
     }
 
     function hideSessionNotice() {
@@ -811,6 +811,7 @@
       councilIntro.classList.add("session-active");
       activateScrollPad();
       pulseAllListening();
+      showSessionNotice();
     }
 
     function endDeliberation() {
@@ -835,9 +836,25 @@
 
     function setRunBusy(isBusy) {
       run.classList.toggle("is-busy", isBusy);
+      run.classList.toggle("is-active", false);
       run.setAttribute("aria-busy", isBusy ? "true" : "false");
       run.textContent = isBusy ? t("starting") : t("startSession");
       run.disabled = isBusy;
+    }
+
+    function setRunActive() {
+      run.classList.remove("is-busy");
+      run.classList.add("is-active");
+      run.setAttribute("aria-busy", "false");
+      run.textContent = t("sessionActive");
+      run.disabled = true;
+    }
+
+    function setRunIdle() {
+      run.classList.remove("is-busy", "is-active");
+      run.setAttribute("aria-busy", "false");
+      run.textContent = t("startSession");
+      run.disabled = false;
     }
 
     function showBudgetModal(opts) {
@@ -954,7 +971,7 @@
       qa.classList.remove("responding");
       answer.disabled = true;
       hideSessionNotice();
-      run.disabled = false;
+      setRunIdle();
       setStatus("", "");
       saveSessionBackup();
     }
@@ -1233,6 +1250,7 @@
     }
 
     async function finishTurn(data, turnEl) {
+      hideSessionNotice();
       allowFinalSubmit = false;
       if (data.transcript_path) {
         sessionTranscriptFile = transcriptBasename(data.transcript_path);
@@ -1244,7 +1262,7 @@
 
       if (data.done) {
         qa.classList.add("hidden");
-        run.disabled = false;
+        setRunIdle();
         setStatus(t("done"), "done");
         stopCountdown();
         syncTimer(0);
@@ -1334,6 +1352,7 @@
       answerLocked = false;
       pendingQuestionTurn = null;
       hideSessionNotice();
+      sessionNoticeShown = false;
       renderTimer();
       refreshUsage();
       councilIntro.classList.remove("session-active");
@@ -1379,7 +1398,6 @@
       window.__beforeStartClicked = false;
       clear();
       setRunBusy(true);
-      showSessionNotice();
       startCountdown(INITIAL_SESSION_SEC);
       setStatus(t("starting"), "run");
       try {
@@ -1401,9 +1419,7 @@
           renderUsage(data.usage, mockMode);
         }
         await loadUsageForSession();
-        setRunBusy(false);
-        run.disabled = true;
-        run.textContent = t("sessionActive");
+        setRunActive();
         setStatus("", "");
         answer.disabled = false;
         saveSessionBackup();
@@ -1441,6 +1457,7 @@
     });
 
     answer.addEventListener("input", () => {
+      hideSessionNotice();
       if (answer.value.trim()) {
         completionCommitted = true;
       }
@@ -1488,7 +1505,7 @@
           endDeliberation();
           setStatus(t("tokensDepleted"), "err");
           showBudgetModal({ force: true });
-          run.disabled = false;
+          setRunIdle();
         } else {
           endDeliberation();
           setStatus(t("errorCheckServer"), "err");
@@ -1512,6 +1529,12 @@
     }
     if (shareSession) {
       shareSession.addEventListener("click", shareSessionPage);
+    }
+    if (sessionNoticeCard) {
+      sessionNoticeCard.addEventListener("click", hideSessionNotice);
+    }
+    if (sessionNotice) {
+      sessionNotice.addEventListener("click", hideSessionNotice);
     }
     if (budgetModalClose) {
       budgetModalClose.addEventListener("click", hideBudgetModal);

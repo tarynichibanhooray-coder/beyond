@@ -212,6 +212,9 @@
     global.document.documentElement.lang = locale;
     global.document.title = t("pageTitle");
     global.document.querySelectorAll("[data-i18n]").forEach(function (el) {
+      if (el.id === "run" && (el.disabled || el.classList.contains("is-busy") || el.classList.contains("is-active"))) {
+        return;
+      }
       var key = el.getAttribute("data-i18n");
       var translated = t(key);
       if (translated !== key) el.textContent = translated;
