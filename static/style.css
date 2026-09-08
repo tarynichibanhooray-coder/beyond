@@ -194,14 +194,24 @@ body {
   50% { opacity: 0.42; }
 }
 
-@media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce), (max-width: 640px) {
   #aura:not(.idle) .aura-plume {
     animation: none !important;
   }
 
   #aura.idle .aura-plume.ambient {
     animation: none !important;
-    opacity: 0.36;
+    opacity: 0.28;
+  }
+
+  .aura-plume {
+    filter: none;
+  }
+
+  .aura-wisp,
+  .aura-plume.ambient .aura-wisp {
+    filter: blur(48px);
+    will-change: auto;
   }
 }
 
@@ -874,15 +884,11 @@ body {
   line-height: 1.45;
 }
 
-.abox {
-  position: relative;
-}
-
 .abox textarea {
   width: 100%;
   resize: vertical;
   min-height: 84px;
-  padding: 0.65rem 5.2rem 2.6rem 0.75rem;
+  padding: 0.65rem 0.75rem;
   border-radius: 8px;
   border: 1px solid #2a2a32;
   background: #121218;
@@ -896,30 +902,13 @@ body {
 }
 
 .answer-actions {
-  position: absolute;
-  right: 0.55rem;
-  bottom: 0.55rem;
-  z-index: 3;
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 0.55rem;
 }
 
 .submit-answer {
-  min-width: 5.25rem;
-  min-height: 2.35rem;
-  padding: 0.45rem 0.95rem;
-  border-color: rgba(214, 216, 226, 0.45);
-  background: rgba(214, 216, 226, 0.16);
-  box-shadow: 0 0 0 1px rgba(214, 216, 226, 0.08), 0 10px 24px rgba(0, 0, 0, 0.24);
-  color: var(--ink);
-  font-size: 0.78rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
-.submit-answer:hover,
-.submit-answer:focus-visible {
-  border-color: rgba(232, 184, 109, 0.7);
-  background: rgba(232, 184, 109, 0.18);
+  min-width: 6.5rem;
 }
 
 .arow {

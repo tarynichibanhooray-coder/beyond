@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="In This Time Before" />
   <meta name="twitter:description" content="A three-minute council with Ibn Arabi, Toni Morrison, and Søren Kierkegaard." />
   <meta name="twitter:image" content="https://inthistimebefore.onrender.com/static/og-in-this-time-before.png" />
-  <link rel="stylesheet" href="/static/style.css?v=14" />
+  <link rel="stylesheet" href="/static/style.css?v=15" />
 </head>
 <body>
   <div id="aura" class="idle" aria-hidden="true">
@@ -134,7 +134,7 @@
       <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
     </div>
   </div>
-  <script src="/static/i18n.js?v=14"></script>
+  <script src="/static/i18n.js?v=15"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -415,7 +415,9 @@
 
     let auraMotionId = null;
     let auraWispParams = null;
-    const auraReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const auraReducedMotion =
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches ||
+      window.matchMedia("(max-width: 640px)").matches;
 
     const WISP_BASE = [
       { sx: 1.05, sy: 1.18, rot: -14 },
@@ -1220,23 +1222,62 @@
     async function consumeAnswerStream(res, turnEl) {
       const reader = res.body.getReader();
       const dec = new TextDecoder();
+      const pending = [];
       let buf = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buf += dec.decode(value, { stream: true });
-        const chunks = buf.split("\n\n");
-        buf = chunks.pop() || "";
-        for (const chunk of chunks) {
-          const line = chunk.split("\n").find((l) => l.startsWith("data: "));
-          if (!line) continue;
-          const event = JSON.parse(line.slice(6));
+      let readingDone = false;
+      let readError = null;
+      let wake = null;
+
+      const notify = () => {
+        if (wake) {
+          const release = wake;
+          wake = null;
+          release();
+        }
+      };
+
+      const reading = (async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += dec.decode(value, { stream: true });
+            const chunks = buf.split("\n\n");
+            buf = chunks.pop() || "";
+            for (const chunk of chunks) {
+              const line = chunk.split("\n").find((l) => l.startsWith("data: "));
+              if (!line) continue;
+              pending.push(JSON.parse(line.slice(6)));
+              notify();
+            }
+          }
+        } catch (err) {
+          readError = err;
+        } finally {
+          readingDone = true;
+          notify();
+        }
+      })();
+
+      try {
+        while (true) {
+          if (!pending.length) {
+            if (readError) throw readError;
+            if (readingDone) throw new Error("Council stream ended early");
+            await new Promise((resolve) => {
+              wake = resolve;
+            });
+            continue;
+          }
+          const event = pending.shift();
           if (event.type === "turn_done") return event;
           if (event.type === "error") throw new Error(event.detail || "Stream error");
           await applyStreamEvent(turnEl, event);
         }
+      } finally {
+        reader.cancel().catch(() => {});
+        await reading.catch(() => {});
       }
-      throw new Error("Council stream ended early");
     }
 
     async function finishTurnShell(turnEl, data) {

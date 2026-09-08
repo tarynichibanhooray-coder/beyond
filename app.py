@@ -167,7 +167,7 @@ def _sse(data: dict) -> str:
     return f"data: {json.dumps(data, default=str)}\n\n"
 
 
-SSE_HEARTBEAT_SECONDS = 10.0
+SSE_HEARTBEAT_SECONDS = 3.0
 
 
 async def _sse_keepalive(source: AsyncIterator[str]) -> AsyncIterator[str]:
@@ -199,7 +199,10 @@ async def _sse_keepalive(source: AsyncIterator[str]) -> AsyncIterator[str]:
             yield chunk
     finally:
         task.cancel()
-        await source.aclose()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 def _validate_transcript_filename(filename: str) -> Path:
