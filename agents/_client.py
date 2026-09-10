@@ -12,6 +12,15 @@ from config import settings
 TModel = TypeVar("TModel", bound=BaseModel)
 
 
+def message_text(msg) -> str:
+    parts = []
+    for block in getattr(msg, "content", []) or []:
+        text = getattr(block, "text", None)
+        if text:
+            parts.append(text)
+    return "".join(parts)
+
+
 def create_message(client, *, label: str, **kwargs):
     system = kwargs.get("system")
     if isinstance(system, list) and not settings.prompt_cache:
@@ -31,6 +40,22 @@ def create_message(client, *, label: str, **kwargs):
 
     log_api_usage(msg, label, budget=settings.token_budget)
     return msg
+
+
+def create_json_message(client, *, label: str, messages: list[dict], prefill: str = "{", **kwargs):
+    """Force JSON by prefilling '{'. If max_tokens cuts the object, continue once."""
+    first_messages = [*messages, {"role": "assistant", "content": prefill}]
+    msg = create_message(client, label=label, messages=first_messages, **kwargs)
+    text = prefill + message_text(msg)
+    if getattr(msg, "stop_reason", None) != "max_tokens":
+        return text
+    continued = create_message(
+        client,
+        label=f"{label}.continue",
+        messages=[*messages, {"role": "assistant", "content": text}],
+        **kwargs,
+    )
+    return text + message_text(continued)
 
 
 def get_anthropic_client():

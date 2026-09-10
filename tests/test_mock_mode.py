@@ -114,6 +114,52 @@ def test_parse_json_response_extracts_prose_wrapped_object():
     assert result.next_question.startswith("What would you begin")
 
 
+def test_create_json_message_prefills_and_continues_on_max_tokens():
+    from types import SimpleNamespace
+
+    from agents._client import create_json_message
+
+    calls = []
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                return SimpleNamespace(
+                    stop_reason="max_tokens",
+                    content=[SimpleNamespace(text='"chosen_asker": "arabi", ')],
+                    usage=SimpleNamespace(
+                        input_tokens=1,
+                        output_tokens=1,
+                        cache_creation_input_tokens=0,
+                        cache_read_input_tokens=0,
+                    ),
+                )
+            return SimpleNamespace(
+                stop_reason="end_turn",
+                content=[SimpleNamespace(text='"next_question": "What now?"}')],
+                usage=SimpleNamespace(
+                    input_tokens=1,
+                    output_tokens=1,
+                    cache_creation_input_tokens=0,
+                    cache_read_input_tokens=0,
+                ),
+            )
+
+    client = SimpleNamespace(messages=FakeMessages())
+    raw = create_json_message(
+        client,
+        label="council.decide",
+        model="claude-test",
+        max_tokens=540,
+        messages=[{"role": "user", "content": "{}"}],
+    )
+
+    assert raw == '{"chosen_asker": "arabi", "next_question": "What now?"}'
+    assert calls[0]["messages"][-1] == {"role": "assistant", "content": "{"}
+    assert calls[1]["messages"][-1]["content"].startswith("{")
+
+
 def test_parse_council_decision_falls_back_when_model_returns_prose():
     from agents.council import parse_council_decision
     from models import CouncilDecision

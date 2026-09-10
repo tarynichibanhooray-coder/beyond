@@ -7,7 +7,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from agents._client import create_message, get_anthropic_client, parse_json_response
+from agents._client import create_json_message, get_anthropic_client, parse_json_response
 from agents.arabi_agent import ArabiAgent
 from agents.delta_agent import DeltaAgent
 from agents.lambda_agent import LambdaAgent
@@ -179,7 +179,7 @@ class AgentCouncil:
         )
 
         def _call() -> CouncilDecision:
-            msg = create_message(
+            raw = create_json_message(
                 client,
                 label="council.decide",
                 model=settings.anthropic_model,
@@ -188,7 +188,7 @@ class AgentCouncil:
                 messages=[{"role": "user", "content": payload}],
             )
             return parse_council_decision(
-                msg.content[0].text,
+                raw,
                 self.roster,
                 _mock_decide(ctx, conversation, self.roster),
             )
