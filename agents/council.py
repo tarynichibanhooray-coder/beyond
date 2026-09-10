@@ -16,6 +16,7 @@ from agents.roster import CouncilMemberId, display_label, display_name, parse_ro
 from prompt_training.prompts import COUNCIL_DECIDE
 from config import settings
 from utils.locale import apply_locale_system, normalize_locale
+from utils.observation_limits import clamp_reflection_display
 from models import (
     ConversationLine,
     CouncilDecision,
@@ -104,7 +105,7 @@ class AgentCouncil:
         }
         reflect_results = await asyncio.gather(*reflect_tasks.values())
         reflections = {
-            member_id: result.model_dump()
+            member_id: clamp_reflection_display(member_id, result.model_dump())
             for member_id, result in zip(reflect_tasks.keys(), reflect_results, strict=True)
         }
         payload = {"type": "reflections", **{f"{k}_reflection": v for k, v in reflections.items()}}

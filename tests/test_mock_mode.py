@@ -80,6 +80,26 @@ def test_api_session_flow_without_live_ai():
     assert "arabi" in data["reflections"]
 
 
+def test_clamp_observation_caps_sentences_and_words():
+    from utils.observation_limits import clamp_observation, clamp_reflection_display
+
+    long = (
+        "They keep saying they are tired of waiting and then they explain the whole hallway "
+        "again and again until the original fatigue is gone — and something larger is moving "
+        "through them in the in-between where searching is not failure at all."
+    )
+    clipped = clamp_observation(long)
+    assert clipped.count(".") + clipped.count("!") + clipped.count("?") <= 2
+    assert len(clipped.split()) <= 40
+
+    dumped = clamp_reflection_display(
+        "arabi",
+        {"disclosure_read": long, "color_intensity": 64},
+    )
+    assert dumped["disclosure_read"] == clipped
+    assert dumped["color_intensity"] == 64
+
+
 def test_kierkegaard_reflect_coerces_mis_keyed_json():
     from agents._client import parse_json_response
     from models import KierkegaardReflection

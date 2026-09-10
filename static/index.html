@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="In This Time Before" />
   <meta name="twitter:description" content="A three-minute council with Ibn Arabi, Toni Morrison, and Søren Kierkegaard." />
   <meta name="twitter:image" content="https://inthistimebefore.onrender.com/static/og-in-this-time-before.png" />
-  <link rel="stylesheet" href="/static/style.css?v=15" />
+  <link rel="stylesheet" href="/static/style.css?v=16" />
 </head>
 <body>
   <div id="aura" class="idle" aria-hidden="true">
@@ -134,7 +134,7 @@
       <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
     </div>
   </div>
-  <script src="/static/i18n.js?v=15"></script>
+  <script src="/static/i18n.js?v=16"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -351,10 +351,21 @@
     }
 
     function firstSentences(text, maxSentences) {
-      const cleaned = String(text || "").trim();
+      const cleaned = String(text || "").replace(/\s+/g, " ").trim();
       if (!cleaned) return "";
-      const sentences = cleaned.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g) || [cleaned];
-      return sentences.slice(0, maxSentences).join(" ").replace(/\s+/g, " ").trim();
+      let sentences = cleaned.match(/[^.!?]+[.!?]+["')\]]*|[^.!?]+$/g) || [cleaned];
+      if (sentences.length === 1 && cleaned.split(/\s+/).length > 40) {
+        const parts = cleaned.split(/\s*[—;–]\s*/);
+        if (parts.length > 1) {
+          sentences = [parts[0].replace(/[—,;–]+$/, "") + ".", parts.slice(1).join("—")];
+        }
+      }
+      let clipped = sentences.slice(0, maxSentences).join(" ").replace(/\s+/g, " ").trim();
+      const words = clipped.split(/\s+/);
+      if (words.length > 40) {
+        clipped = words.slice(0, 40).join(" ").replace(/[,;:—–-]+$/, "") + ".";
+      }
+      return clipped;
     }
 
     const REFLECTION_FIELD = {
