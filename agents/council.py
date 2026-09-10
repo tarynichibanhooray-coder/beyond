@@ -183,7 +183,7 @@ class AgentCouncil:
                 client,
                 label="council.decide",
                 model=settings.anthropic_model,
-                max_tokens=1024,
+                max_tokens=540,
                 system=apply_locale_system(COUNCIL_DECIDE, ctx.locale),
                 messages=[{"role": "user", "content": payload}],
             )
