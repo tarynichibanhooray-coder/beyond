@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="In This Time Before" />
   <meta name="twitter:description" content="A three-minute council with Ibn Arabi, Toni Morrison, and Søren Kierkegaard." />
   <meta name="twitter:image" content="https://inthistimebefore.onrender.com/static/og-in-this-time-before.png" />
-  <link rel="stylesheet" href="/static/style.css?v=16" />
+  <link rel="stylesheet" href="/static/style.css?v=17" />
 </head>
 <body>
   <div id="aura" class="idle" aria-hidden="true">
@@ -122,6 +122,44 @@
       <p id="shareNotice" class="export-notice hidden" aria-live="polite"></p>
     </section>
   </main>
+  <aside id="thinkingStage" class="thinking-stage hidden" hidden aria-live="polite" aria-atomic="true">
+    <div class="thinking-sky" aria-hidden="true">
+      <span class="thinking-membrane"></span>
+      <svg class="thinking-map" viewBox="0 0 240 150" focusable="false">
+        <defs>
+          <filter id="thinking-glow" x="-40%" y="-40%" width="180%" height="180%">
+            <feGaussianBlur stdDeviation="2.4" result="blur" />
+            <feMerge>
+              <feMergeNode in="blur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+        <path id="thinking-path" class="thinking-path" d="M120 34 L196 122 L44 122 Z" fill="none" />
+        <path class="thinking-arc arc-am" d="M120 34 L44 122" />
+        <path class="thinking-arc arc-mk" d="M44 122 L196 122" />
+        <path class="thinking-arc arc-ka" d="M196 122 L120 34" />
+        <g class="thinking-node n-arabi" data-speaker="arabi">
+          <circle class="ember" cx="120" cy="34" r="6.5" />
+          <text x="120" y="34" text-anchor="middle" dominant-baseline="middle">◎</text>
+        </g>
+        <g class="thinking-node n-morrison" data-speaker="morrison">
+          <circle class="ember" cx="44" cy="122" r="6.5" />
+          <text x="44" y="122" text-anchor="middle" dominant-baseline="middle">Ψ</text>
+        </g>
+        <g class="thinking-node n-kierkegaard" data-speaker="kierkegaard">
+          <circle class="ember" cx="196" cy="122" r="6.5" />
+          <text x="196" y="122" text-anchor="middle" dominant-baseline="middle">Δ</text>
+        </g>
+        <circle class="thinking-wanderer" r="2.2" filter="url(#thinking-glow)">
+          <animateMotion dur="16s" repeatCount="indefinite" rotate="auto">
+            <mpath href="#thinking-path" />
+          </animateMotion>
+        </circle>
+      </svg>
+    </div>
+    <p class="thinking-line" id="thinkingLine"></p>
+  </aside>
   <div id="sessionNotice" class="session-notice hidden" role="status" aria-live="polite">
     <button type="button" class="session-notice-card" id="sessionNoticeCard" data-i18n="sessionNotice">
       You will be able to read the full conversation when your session is completed
@@ -134,7 +172,7 @@
       <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
     </div>
   </div>
-  <script src="/static/i18n.js?v=16"></script>
+  <script src="/static/i18n.js?v=17"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -172,6 +210,8 @@
     const tokRem = document.getElementById("tok-rem");
     const sessionNotice = document.getElementById("sessionNotice");
     const sessionNoticeCard = document.getElementById("sessionNoticeCard");
+    const thinkingStage = document.getElementById("thinkingStage");
+    const thinkingLine = document.getElementById("thinkingLine");
     const budgetModal = document.getElementById("budgetModal");
     const budgetModalClose = document.getElementById("budgetModalClose");
 
@@ -209,6 +249,14 @@
     let councilMembers = [];
     let councilRoster = [];
     let lastUsageBundle = null;
+    let thinkingCycleId = null;
+    let thinkingLineIndex = 0;
+    let thinkingKind = null;
+    const THINKING_LINE_KEYS = {
+      start: ["thinkingStart1", "thinkingStart2"],
+      reflect: ["thinkingReflect1", "thinkingReflect2", "thinkingReflect3"],
+      decide: ["thinkingDecide1", "thinkingDecide2"],
+    };
 
     function stopTyping(el) {
       if (!el) return;
@@ -716,7 +764,7 @@
           sessionId: sessionId,
           currentQuestion: currentQuestion,
           remainingSec: remainingSec,
-          logHtml: log.innerHTML,
+          logHtml: logHtmlForBackup(),
           finalQuestion: finalQ ? finalQ.textContent : "",
           finalVisible: finalBox && !finalBox.classList.contains("hidden"),
           exportVisible: sessionExport && !sessionExport.classList.contains("hidden"),
@@ -745,7 +793,9 @@
         return false;
       }
       if (!data.logHtml) return false;
+      parkThinkingStage();
       log.innerHTML = data.logHtml;
+      log.querySelectorAll(".thinking-stage").forEach((el) => el.remove());
       if (data.finalVisible && finalBox) {
         finalBox.classList.remove("hidden");
         if (finalQ) finalQ.textContent = data.finalQuestion || "";
@@ -828,6 +878,7 @@
     }
 
     function endDeliberation() {
+      hideThinking();
       councilIntro.classList.remove("session-active");
       resetCouncilHighlights();
     }
@@ -845,6 +896,82 @@
     function setStatus(text, cls) {
       status.textContent = text;
       status.className = "status " + (cls || "");
+    }
+
+    function thinkingKeys(kind) {
+      return THINKING_LINE_KEYS[kind] || THINKING_LINE_KEYS.reflect;
+    }
+
+    function parkThinkingStage() {
+      if (thinkingStage && thinkingStage.parentElement !== document.body) {
+        document.body.appendChild(thinkingStage);
+      }
+    }
+
+    function logHtmlForBackup() {
+      const clone = log.cloneNode(true);
+      clone.querySelectorAll(".thinking-stage").forEach((el) => el.remove());
+      return clone.innerHTML;
+    }
+
+    function stopThinkingCycle() {
+      if (thinkingCycleId != null) {
+        clearInterval(thinkingCycleId);
+        thinkingCycleId = null;
+      }
+    }
+
+    function renderThinkingLine(kind, index) {
+      if (!thinkingLine) return;
+      const keys = thinkingKeys(kind);
+      const key = keys[index % keys.length];
+      thinkingLine.classList.add("is-swap");
+      window.setTimeout(() => {
+        if (thinkingKind !== kind) return;
+        thinkingLine.textContent = t(key);
+        thinkingLine.classList.remove("is-swap");
+      }, 280);
+    }
+
+    function startThinkingCycle(kind) {
+      stopThinkingCycle();
+      thinkingKind = kind;
+      thinkingLineIndex = 0;
+      if (thinkingLine) {
+        thinkingLine.classList.remove("is-swap");
+        thinkingLine.textContent = t(thinkingKeys(kind)[0]);
+      }
+      thinkingCycleId = window.setInterval(() => {
+        thinkingLineIndex += 1;
+        renderThinkingLine(kind, thinkingLineIndex);
+      }, 4200);
+    }
+
+    function showThinking(kind, parent) {
+      if (!thinkingStage) return;
+      const host = parent || log;
+      if (host && thinkingStage.parentElement !== host) {
+        host.appendChild(thinkingStage);
+      }
+      thinkingStage.hidden = false;
+      thinkingStage.classList.remove("hidden");
+      thinkingStage.dataset.kind = kind;
+      const svg = thinkingStage.querySelector(".thinking-map");
+      if (svg) svg.replaceWith(svg.cloneNode(true));
+      startThinkingCycle(kind);
+      setAura("thinking");
+      if (kind !== "start") pulseAllListening();
+      keepActiveAboveThreshold(thinkingStage);
+    }
+
+    function hideThinking() {
+      stopThinkingCycle();
+      thinkingKind = null;
+      if (!thinkingStage) return;
+      thinkingStage.classList.add("hidden");
+      thinkingStage.hidden = true;
+      thinkingStage.removeAttribute("data-kind");
+      parkThinkingStage();
     }
 
     function setRunBusy(isBusy) {
@@ -1066,6 +1193,7 @@
         const turn = pendingQuestionTurn;
         pendingQuestionTurn = null;
         turn.classList.remove("turn-pending-question");
+        showThinking("reflect", turn);
         return turn;
       }
       const turnNum = log.querySelectorAll(".turn").length + 1;
@@ -1073,6 +1201,7 @@
       turn.className = "turn";
       turn.innerHTML = "<h2 class=\"turn-title\">" + turnRoman(turnNum) + "</h2>";
       log.appendChild(turn);
+      showThinking("reflect", turn);
       return turn;
     }
 
@@ -1136,6 +1265,7 @@
     }
 
     async function revealPrivateThoughts(turnEl, event) {
+      hideThinking();
       setAura("thinking");
       let shell = turnEl.querySelector(".private-thoughts");
       if (!shell) {
@@ -1173,14 +1303,17 @@
       if (event.type === "phase") {
         if (event.phase === "reflect") {
           pulseAllListening();
-          setAura("thinking");
+          showThinking("reflect", turnEl);
         } else if (event.phase === "deliberate") {
+          hideThinking();
           pulseAllListening();
         } else if (event.phase === "speak" && event.speaker) {
+          hideThinking();
           setCouncilSpeaking(event.speaker);
           setAuraForSpeaker(event.speaker);
         } else if (event.phase === "decide") {
           setCouncilSpeaking(null);
+          showThinking("decide", turnEl);
         }
         return;
       }
@@ -1313,6 +1446,7 @@
       if (turnEl) setActiveTurnSection(turnEl, null);
 
       if (data.done) {
+        hideThinking();
         qa.classList.add("hidden");
         setRunIdle();
         setStatus(t("done"), "done");
@@ -1338,6 +1472,7 @@
       }
 
       if (data.question_rephrased) {
+        hideThinking();
         if (turnEl) turnEl.remove();
         endDeliberation();
         setStatus("", "");
@@ -1366,6 +1501,7 @@
       }
       syncAnswerPrompt();
       await pauseBetweenSpeakers();
+      hideThinking();
       await appendNextQuestionChapter(data);
       endDeliberation();
       setStatus("", "");
@@ -1384,6 +1520,7 @@
     }
 
     function clear() {
+      hideThinking();
       stopCountdown();
       endDeliberation();
       deactivateScrollPad();
@@ -1452,6 +1589,7 @@
       setRunBusy(true);
       startCountdown(INITIAL_SESSION_SEC);
       setStatus(t("starting"), "run");
+      showThinking("start", log);
       try {
         const res = await apiFetch("/api/session/start", { method: "POST" });
         const data = await readJsonResponse(res);
@@ -1464,6 +1602,7 @@
         if (data.council) renderCouncil(data.council);
         clearSessionBackup();
         activateScrollPad();
+        hideThinking();
         await appendFeedQuestion(currentQuestion, true);
         qa.classList.remove("hidden");
         councilIntro.classList.add("session-active");
@@ -1477,6 +1616,7 @@
         saveSessionBackup();
         answer.focus();
       } catch (e) {
+        hideThinking();
         stopCountdown();
         syncTimer(null);
         setRunBusy(false);
