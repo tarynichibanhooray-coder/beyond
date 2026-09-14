@@ -61,6 +61,8 @@ class _SessionState:
     turn: int
     locale: str = "en"
     turn_busy: bool = False
+    completed: bool = False
+    final_question: str | None = None
 
 
 _SESSIONS: dict[str, _SessionState] = {}
@@ -330,8 +332,16 @@ async def _finalize_turn(
     )
     if done:
         final = await state.sm.end_session(locale=state.locale)
-        final_question = scrub_title_echo(limit_question_sentences(final.final_question))
+        final_question = scrub_title_echo(limit_question_sentences(final.final_question)) or (
+            "¿Qué elegirás ser?"
+            if normalize_locale(state.locale) == "es"
+            else "What will you choose to be?"
+        )
         reasoning = final.reasoning
+        state.completed = True
+        state.final_question = final_question
+        state.question = final_question
+        state.sm.note_current_question(final_question)
         record_completed_session(state.sm.usage.snapshot().total_tokens)
 
     usage = _usage_payload(state.sm.usage, usage_before)
@@ -422,11 +432,48 @@ async def checkpoint(session_id: str) -> dict:
     }
 
 
+@app.post("/api/session/{session_id}/continue")
+async def continue_session(session_id: str) -> StartResponse:
+    state = _SESSIONS.get(session_id)
+    if state is None:
+        raise HTTPException(status_code=404, detail="Unknown session_id")
+    if state.turn_busy:
+        raise HTTPException(status_code=409, detail="Turn already in progress")
+    if not state.completed or not state.final_question:
+        raise HTTPException(status_code=409, detail="Session is not ready to continue")
+
+    set_budget_locale(state.locale)
+    try:
+        assert_budget_available(state.locale)
+    except RuntimeError as exc:
+        raise _budget_http_error(state.locale) from exc
+
+    state.question = state.final_question
+    state.turn = 0
+    state.completed = False
+    state.sm.continue_session(question=state.question)
+    roster = list(state.sm.council_roster)
+    return StartResponse(
+        session_id=session_id,
+        question=state.question,
+        remaining_sec=state.sm.remaining(),
+        mock_mode=settings.mock_mode,
+        usage=_usage_payload_idle(state.sm.usage),
+        council_roster=roster,
+        council=localize_member_profiles(member_profiles_for_roster(roster), state.locale),
+        transcript_path=str(state.sm.last_transcript_path)
+        if state.sm.last_transcript_path
+        else None,
+    )
+
+
 @app.post("/api/session/{session_id}/answer")
 async def answer(session_id: str, req: AnswerRequest) -> TurnResponse:
     state = _SESSIONS.get(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
+    if state.completed:
+        raise HTTPException(status_code=409, detail="Session is complete; continue it first")
 
     if state.turn_busy:
         raise HTTPException(status_code=409, detail="Turn already in progress")
@@ -481,8 +528,6 @@ async def answer(session_id: str, req: AnswerRequest) -> TurnResponse:
         result=result,
         usage_before=usage_before,
     )
-    if response.done:
-        _SESSIONS.pop(session_id, None)
     return response
 
 
@@ -491,6 +536,8 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
     state = _SESSIONS.get(session_id)
     if state is None:
         raise HTTPException(status_code=404, detail="Unknown session_id")
+    if state.completed:
+        raise HTTPException(status_code=409, detail="Session is complete; continue it first")
 
     if state.turn_busy:
         raise HTTPException(status_code=409, detail="Turn already in progress")
@@ -530,8 +577,6 @@ async def answer_stream(session_id: str, req: AnswerRequest) -> StreamingRespons
                         result=result,
                         usage_before=usage_before,
                     )
-                    if response.done:
-                        _SESSIONS.pop(session_id, None)
                     yield _sse({"type": "turn_done", **response.model_dump()})
                 else:
                     yield _sse(event)

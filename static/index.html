@@ -15,7 +15,7 @@
   <meta name="twitter:title" content="In This Time Before" />
   <meta name="twitter:description" content="A three-minute council with Ibn Arabi, Toni Morrison, and Søren Kierkegaard." />
   <meta name="twitter:image" content="https://inthistimebefore.onrender.com/static/og-in-this-time-before.png" />
-  <link rel="stylesheet" href="/static/style.css?v=17" />
+  <link rel="stylesheet" href="/static/style.css?v=20" />
 </head>
 <body>
   <div id="aura" class="idle" aria-hidden="true">
@@ -112,6 +112,9 @@
     <section id="final" class="final hidden">
       <h2 data-i18n="finalQuestion">Your final question</h2>
       <p id="final-q" class="final-q"></p>
+      <div class="final-actions">
+        <button type="button" id="continueConversation" class="btn" data-i18n="continueConversation">Continue conversation</button>
+      </div>
     </section>
 
     <section id="sessionExport" class="session-export hidden">
@@ -172,7 +175,7 @@
       <button type="button" id="budgetModalClose" class="btn" data-i18n="budgetModalClose">OK</button>
     </div>
   </div>
-  <script src="/static/i18n.js?v=18"></script>
+  <script src="/static/i18n.js?v=20"></script>
   <script>
     function t(key, vars) {
       return BeforeI18n.t(key, vars);
@@ -199,6 +202,7 @@
     const finalBox = document.getElementById("final");
     const sessionExport = document.getElementById("sessionExport");
     const finalQ = document.getElementById("final-q");
+    const continueConversation = document.getElementById("continueConversation");
     const downloadSession = document.getElementById("downloadSession");
     const shareSession = document.getElementById("shareSession");
     const shareNotice = document.getElementById("shareNotice");
@@ -777,6 +781,60 @@
       }
     }
 
+    async function continueCompletedConversation() {
+      if (!sessionId || !continueConversation || !currentQuestion) return;
+      continueConversation.disabled = true;
+      continueConversation.textContent = t("continuingConversation");
+      showThinking("start", log);
+      try {
+        const res = await apiFetch(`/api/session/${sessionId}/continue`, { method: "POST" });
+        const data = await readJsonResponse(res);
+        currentQuestion = data.question || currentQuestion;
+        remainingSec = data.remaining_sec;
+        mockMode = !!data.mock_mode;
+        timerExpired = false;
+        allowFinalSubmit = false;
+        completionCommitted = false;
+        answerLocked = false;
+        answer.value = "";
+        answer.readOnly = false;
+        answer.disabled = false;
+
+        hideThinking();
+        finalBox.classList.add("hidden");
+        sessionExport.classList.add("hidden");
+        if (shareNotice) {
+          shareNotice.textContent = "";
+          shareNotice.classList.add("hidden");
+        }
+        if (shareSession) shareSession.textContent = t("shareConversation");
+
+        const turn = createPendingQuestionTurn();
+        await appendFeedQuestion(currentQuestion, true, t("finalQuestion"), turn);
+        syncAnswerPrompt();
+        qa.classList.remove("hidden");
+        councilIntro.classList.add("session-active");
+        activateScrollPad();
+        startCountdown(data.remaining_sec);
+        renderUsage(data.usage, mockMode);
+        setRunActive();
+        setStatus("", "");
+        saveSessionBackup();
+        answer.focus();
+      } catch (e) {
+        hideThinking();
+        continueConversation.disabled = false;
+        continueConversation.textContent = t("continueConversation");
+        const msg = e && e.message ? e.message : "";
+        if (isTokensDepletedError(msg)) {
+          setStatus(t("tokensDepleted"), "err");
+          showBudgetModal({ force: true });
+        } else {
+          setStatus(t("errorCheckServer"), "err");
+        }
+      }
+    }
+
     function saveSessionBackup() {
       if (!sessionId || !log) return;
       try {
@@ -1203,9 +1261,20 @@
     }
 
     function turnRoman(n) {
-      const roman = ["", "I", "II", "III"];
-      const idx = Number(n);
-      return idx >= 1 && idx <= 3 ? roman[idx] : String(n);
+      let value = Math.max(1, Math.floor(Number(n) || 1));
+      const numerals = [
+        [1000, "M"], [900, "CM"], [500, "D"], [400, "CD"],
+        [100, "C"], [90, "XC"], [50, "L"], [40, "XL"],
+        [10, "X"], [9, "IX"], [5, "V"], [4, "IV"], [1, "I"],
+      ];
+      let roman = "";
+      for (const [amount, glyph] of numerals) {
+        while (value >= amount) {
+          roman += glyph;
+          value -= amount;
+        }
+      }
+      return roman;
     }
 
     function createTurnShell() {
@@ -1446,8 +1515,6 @@
 
     async function finishTurnShell(turnEl, data) {
       if (data.question_rephrased) return;
-      const title = turnEl.querySelector(".turn-title");
-      if (title) title.textContent = turnRoman(data.turn);
       if (data.done) {
         endDeliberation();
         saveSessionBackup();
@@ -1485,8 +1552,11 @@
         await typeInto(finalQ, data.final_question || "", { onStep: keepActiveAboveThreshold });
         revealDownload();
         endDeliberation();
-        sessionId = null;
-        currentQuestion = null;
+        currentQuestion = data.final_question || "";
+        if (continueConversation) {
+          continueConversation.disabled = false;
+          continueConversation.textContent = t("continueConversation");
+        }
         saveSessionBackup();
         return;
       }
@@ -1553,6 +1623,10 @@
       if (shareSession) shareSession.textContent = t("shareConversation");
       finalBox.classList.add("hidden");
       finalQ.textContent = "";
+      if (continueConversation) {
+        continueConversation.disabled = false;
+        continueConversation.textContent = t("continueConversation");
+      }
       setDownloadReady(false);
       sessionTranscriptFile = null;
       remainingSec = null;
@@ -1742,6 +1816,9 @@
     }
     if (shareSession) {
       shareSession.addEventListener("click", shareSessionPage);
+    }
+    if (continueConversation) {
+      continueConversation.addEventListener("click", continueCompletedConversation);
     }
     if (sessionNoticeCard) {
       sessionNoticeCard.addEventListener("click", hideSessionNotice);

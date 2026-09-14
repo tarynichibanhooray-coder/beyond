@@ -1351,6 +1351,22 @@ body {
   line-height: 1.4;
 }
 
+.final-actions {
+  margin-top: 1.1rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.final-actions .btn {
+  border-color: rgba(94, 200, 212, 0.4);
+  color: #c9eef2;
+  background: rgba(94, 200, 212, 0.08);
+}
+
+.final-actions .btn:hover:not(:disabled) {
+  background: rgba(94, 200, 212, 0.15);
+}
+
 .download-btn {
   margin: 0;
 }

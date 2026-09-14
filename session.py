@@ -57,6 +57,13 @@ class SessionManager:
         self._save_transcript()
         log.info("Session started (%ss); transcript %s", self.timer_seconds, self.last_transcript_path)
 
+    def continue_session(self, *, question: str) -> None:
+        """Start another timed chapter without discarding council history or usage."""
+        self._start_monotonic = time.monotonic()
+        self.current_question = question.strip()
+        self._save_transcript()
+        log.info("Session continued (%ss); transcript %s", self.timer_seconds, self.last_transcript_path)
+
     def note_current_question(self, question: str) -> None:
         text = question.strip()
         if not text:

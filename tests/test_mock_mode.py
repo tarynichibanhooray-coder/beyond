@@ -97,6 +97,45 @@ def test_api_session_flow_without_live_ai():
     assert "arabi" in data["reflections"]
 
 
+def test_completed_session_can_continue_with_history_and_new_timer():
+    import app as app_mod
+
+    client = TestClient(app_mod.app)
+    start = client.post("/api/session/start").json()
+    session_id = start["session_id"]
+
+    response = None
+    for transcript in ("First answer.", "Second answer.", "Third answer."):
+        response = client.post(
+            f"/api/session/{session_id}/answer",
+            json={"transcript": transcript},
+        )
+        assert response.status_code == 200
+
+    completed = response.json()
+    assert completed["done"] is True
+    assert completed["final_question"]
+    assert session_id in app_mod._SESSIONS
+    assert app_mod._SESSIONS[session_id].completed is True
+    history_before = list(app_mod._SESSIONS[session_id].sm.conversation_history)
+
+    continued = client.post(f"/api/session/{session_id}/continue")
+    assert continued.status_code == 200
+    resumed = continued.json()
+    assert resumed["session_id"] == session_id
+    assert resumed["question"] == completed["final_question"]
+    assert resumed["remaining_sec"] > 0
+    assert app_mod._SESSIONS[session_id].sm.conversation_history == history_before
+
+    next_turn = client.post(
+        f"/api/session/{session_id}/answer",
+        json={"transcript": "My answer to the final question."},
+    )
+    assert next_turn.status_code == 200
+    assert next_turn.json()["turn"] == 1
+    assert next_turn.json()["done"] is False
+
+
 def test_scrub_title_echo_removes_installation_name():
     from utils.question_limits import scrub_title_echo
 
