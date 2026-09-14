@@ -16,7 +16,7 @@ from agents.roster import CouncilMemberId, display_label, display_name, parse_ro
 from prompt_training.prompts import COUNCIL_DECIDE
 from config import settings
 from utils.locale import apply_locale_system, normalize_locale
-from utils.observation_limits import clamp_reflection_display
+from utils.observation_limits import DISPLAY_FIELDS, clamp_reflection_display
 from models import (
     ConversationLine,
     CouncilDecision,
@@ -168,13 +168,20 @@ class AgentCouncil:
 
         payload = json.dumps(
             {
-                "question": ctx.question,
-                "participant_answer": ctx.transcript,
+                "asked": ctx.question,
+                "answered": ctx.transcript,
                 "locale": normalize_locale(ctx.locale),
-                "active_roster": self.roster,
-                "private_reflections": reflections,
-                "conversation": [c.model_dump() for c in conversation],
-                "session_history_excerpt": history_snippet,
+                "askers": self.roster,
+                "notes": {
+                    member_id: (reflection.get(DISPLAY_FIELDS[member_id]) or "")
+                    if member_id in DISPLAY_FIELDS
+                    else reflection
+                    for member_id, reflection in reflections.items()
+                },
+                "spoken": [
+                    {"who": line.speaker, "said": line.text} for line in conversation
+                ],
+                "earlier": history_snippet,
             },
             ensure_ascii=False,
         )

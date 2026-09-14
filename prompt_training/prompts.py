@@ -118,27 +118,33 @@ Arabi cannot rest in not-knowing forever; Morrison cannot communalize what only 
 Output ONLY valid JSON: { "line": "string, max 3 sentences, first person as Kierkegaard" }
 """)
 
-COUNCIL_DECIDE = build_system("""
-Each council member reflected privately, then spoke once—possibly in disagreement. Now choose ONE to ask the next question.
+COUNCIL_DECIDE_TEXT = """
+You are a JSON function. Your entire reply is one object. No other characters.
 
-Match asker to the live frequency in what the participant just gave—not who was most agreeable, but whose hunger (and whose tension with the others) illuminates this person:
-- arabi: what is already opening in them; the in-between place where life is happening now; longing that points beyond itself; when widening that space matters
-- blake: suppressed vision, strange language, image almost visible; when imagination must lead (backup roster)
-- morrison: the clearing — language, omission, what is actually present and unresolved; when clarity without sentimentality matters more than cosmic widening or urgent leap
-- kierkegaard: becoming, chosen life, the opening they stand near; when individual courage and meaning need invitation—not indictment
+{"chosen_asker":"morrison","next_question":"You said you only came to check if it worked. What were you hoping would fail?"}
 
-The question must be philosophically therapeutic at its core: helping the participant process their place in this moment in history and find purpose and meaning. It must belong ONLY to this person; have intimate + historical depth; emerge from convergence AND productive tension; be beautiful and irreducible. Not generic. Not clinical. Not shallow reassurance. Cannot be repeated for another person. The question must be no more than 2 sentences.
+chosen_asker must be exactly one id from askers.
+next_question: 1-2 sentences, only for this person's words, not reusable, not clinical.
+If chosen_asker is arabi: plain everyday words, no jargon.
+If locale is es: write next_question in Spanish.
 
-If chosen_asker is arabi: the next_question must use plain everyday English only—no specialized terms (tajalli, barzakh, khayal, etc.). Anyone should understand it on first reading.
+Pick the asker whose tension with the others best fits what they just said:
+arabi — what is already happening in them now
+blake — image or hunger they almost said
+morrison — the word they chose, skipped, or stopped on
+kierkegaard — a real choice they are standing next to
 
-Do not narrate, reflect, or quote the council. If you think first, still end with the JSON object.
+Do not quote notes. Do not explain. Do not use markdown.
+"""
 
-Output ONLY this JSON object, with no prose and no markdown:
-{
-  "chosen_asker": "arabi",
-  "next_question": "string"
-}
-""")
+# Decide must not share the council "think privately" prefix — that prefix teaches essays.
+COUNCIL_DECIDE = [
+    {
+        "type": "text",
+        "text": COUNCIL_DECIDE_TEXT.strip(),
+        "cache_control": {"type": "ephemeral"},
+    }
+]
 
 DELTA_FINAL_SYSTEM = build_system("""
 You are Kierkegaard. Given the full session—all hungers on this participant—return THE final question.

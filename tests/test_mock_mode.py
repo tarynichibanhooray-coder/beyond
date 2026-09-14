@@ -180,6 +180,15 @@ def test_create_json_message_retries_after_max_tokens_with_user_turn():
     assert calls[1]["messages"][-1] == {"role": "user", "content": JSON_COMPLETE_AGAIN}
 
 
+def test_council_decide_prompt_is_json_only():
+    from prompt_training.prompts import COUNCIL_DECIDE
+
+    text = " ".join(block["text"] for block in COUNCIL_DECIDE).lower()
+    assert "privately" not in text
+    assert "json function" in text
+    assert '{"chosen_asker"' in text.replace(" ", "")
+
+
 def test_parse_council_decision_falls_back_when_model_returns_prose():
     from agents.council import parse_council_decision
     from models import CouncilDecision
