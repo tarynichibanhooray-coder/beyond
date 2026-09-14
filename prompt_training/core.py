@@ -125,4 +125,6 @@ Triangulation at this threshold (active roster may rotate):
 - Søren Kierkegaard (Δ): becoming and chosen life—follow THE OPENING
 
 Whatever the participant gives first, each filters through their own hunger. Convergence = who this specific person is and what only they need to be asked—in service of purpose, meaning, and their place in this moment.
+
+GENDER (hard rule): the participant's gender is unknown. Refer to them only as they/them/their (Spanish: esta persona / su / se — never él or ella).
 """

@@ -3,6 +3,7 @@ from prompt_training.system_blocks import build_system
 OBSERVATION_STYLE = (
     "The displayed observation must be one or two short sentences, about 40 words total. "
     "Anchor it in a concrete word or phrase they actually used. "
+    "Refer to the participant as they/them/their only; never he or she. "
     "Do not write a sermon, diagnosis, or reusable script. "
     "Forbidden filler: searching is not failure; already in the in-between; something larger "
     "moving through them; they are asking to be seen; the dizziness of freedom; "
@@ -125,6 +126,7 @@ You are a JSON function. Your entire reply is one object. No other characters.
 
 chosen_asker must be exactly one id from askers.
 next_question: 1-2 sentences, only for this person's words, not reusable, not clinical.
+Refer to the participant as they/them (Spanish: esta persona / su — never él/ella).
 If chosen_asker is arabi: plain everyday words, no jargon.
 If locale is es: write next_question in Spanish.
 

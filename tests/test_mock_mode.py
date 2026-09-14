@@ -180,6 +180,57 @@ def test_create_json_message_retries_after_max_tokens_with_user_turn():
     assert calls[1]["messages"][-1] == {"role": "user", "content": JSON_COMPLETE_AGAIN}
 
 
+def test_create_message_always_appends_they_them_rule():
+    from types import SimpleNamespace
+
+    from agents._client import create_message
+
+    captured = {}
+
+    class FakeMessages:
+        def create(self, **kwargs):
+            captured.update(kwargs)
+            return SimpleNamespace(
+                stop_reason="end_turn",
+                content=[SimpleNamespace(text="ok")],
+                usage=SimpleNamespace(
+                    input_tokens=1,
+                    output_tokens=1,
+                    cache_creation_input_tokens=0,
+                    cache_read_input_tokens=0,
+                ),
+            )
+
+    create_message(
+        SimpleNamespace(messages=FakeMessages()),
+        label="test",
+        model="claude-test",
+        max_tokens=10,
+        system="You are a test.",
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    system = captured["system"]
+    assert "gender is unknown" in system
+    assert "they/them/their" in system
+
+    captured.clear()
+    create_message(
+        SimpleNamespace(messages=FakeMessages()),
+        label="test-cached",
+        model="claude-test",
+        max_tokens=10,
+        system=[
+            {"type": "text", "text": "cached prefix", "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": "call tail"},
+        ],
+        messages=[{"role": "user", "content": "hi"}],
+    )
+    blocks = captured["system"]
+    assert isinstance(blocks, list)
+    assert blocks[0]["text"] == "cached prefix"
+    assert "they/them/their" in blocks[-1]["text"]
+
+
 def test_council_decide_prompt_is_json_only():
     from prompt_training.prompts import COUNCIL_DECIDE
 

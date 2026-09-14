@@ -11,20 +11,30 @@ The participant's browser is set to Spanish. Write ALL of your output in Spanish
 - keep council member names as proper names (Ibn Arabi, Toni Morrison, Kierkegaard, etc.)
 - questions must use plain everyday Spanish anyone can understand on first reading
 - no untranslated jargon or specialized foreign terms
+- the participant's gender is unknown: never él/ella for them; use esta persona, su, se, le, or tú/te
+""".strip()
+
+PARTICIPANT_THEY_INSTRUCTION = """
+GENDER (hard rule): The participant's gender is unknown.
+English: they/them/their only. Never he, she, him, her, his, himself, herself for the participant.
+Spanish: never él or ella for the participant. Use esta persona, su, se, le, or tú/te when addressing them.
+Do not infer gender from name, voice, or story. Historical he/she for named council members is allowed.
 """.strip()
 
 REPHRASE_SYSTEM: dict[Locale, str] = {
     "en": (
         "Rephrase the council's question so anyone can understand it. "
         "Use plain everyday English. No jargon, no untranslated foreign terms, "
-        "no metaphysical vocabulary. One or two short sentences. Output ONLY the "
-        "rephrased question text, no quotes or preamble."
+        "no metaphysical vocabulary. One or two short sentences. "
+        "The participant's gender is unknown: they/them/their only, never he or she. "
+        "Output ONLY the rephrased question text, no quotes or preamble."
     ),
     "es": (
         "Reformula la pregunta del consejo para que cualquiera pueda entenderla. "
         "Usa un español cotidiano y claro. Sin jerga, sin términos extranjeros sin traducir, "
-        "sin vocabulario metafísico. Una o dos frases cortas. Devuelve SOLO el texto "
-        "de la pregunta reformulada, sin comillas ni preámbulo."
+        "sin vocabulario metafísico. Una o dos frases cortas. "
+        "El género de la persona participante es desconocido: nunca él ni ella; usa esta persona, su, se, le, o tú/te. "
+        "Devuelve SOLO el texto de la pregunta reformulada, sin comillas ni preámbulo."
     ),
 }
 
@@ -77,7 +87,7 @@ COUNCIL_PROFILE_I18N: dict[Locale, dict[str, dict[str, str]]] = {
             "role": "El Umbral",
             "bio_role": (
                 "Lee lo que ya se abre en esta persona—no esperando a que la vida comience, "
-                "sino encontrándola en el lugar intermedio donde ocurren las cosas más reales."
+                "sino encontrando a esta persona en el lugar intermedio donde ocurren las cosas más reales."
             ),
             "bio_pro": (
                 "Filósofo místico andalusí cuya obra sobre la imaginación, el umbral "

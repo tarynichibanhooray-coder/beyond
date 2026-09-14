@@ -8,6 +8,7 @@ from pydantic import BaseModel, ValidationError
 
 from agents._reflect_coerce import coerce_reflect_payload
 from config import settings
+from utils.locale import PARTICIPANT_THEY_INSTRUCTION
 
 TModel = TypeVar("TModel", bound=BaseModel)
 
@@ -21,6 +22,21 @@ def message_text(msg) -> str:
     return "".join(parts)
 
 
+def _append_system_text(system, extra: str):
+    extra = (extra or "").strip()
+    if not extra:
+        return system
+    if system is None:
+        return extra
+    if isinstance(system, str):
+        return f"{system.rstrip()}\n\n{extra}"
+    if isinstance(system, list):
+        blocks = [dict(block) for block in system]
+        blocks.append({"type": "text", "text": extra})
+        return blocks
+    return system
+
+
 def create_message(client, *, label: str, **kwargs):
     system = kwargs.get("system")
     if isinstance(system, list) and not settings.prompt_cache:
@@ -28,6 +44,7 @@ def create_message(client, *, label: str, **kwargs):
             **kwargs,
             "system": "\n\n".join(block["text"] for block in system),
         }
+    kwargs["system"] = _append_system_text(kwargs.get("system"), PARTICIPANT_THEY_INSTRUCTION)
     if not settings.mock_mode and settings.token_budget > 0:
         from utils.daily_budget import assert_budget_available
 
