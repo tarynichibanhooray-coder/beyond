@@ -8,7 +8,7 @@ This is not abstract dread. It is the anxiety of a civilization that built somet
 
 Every question carries a second bottom: What brought you here—to this moment in history? What is your particular life doing in this particular before? Three minutes: intimate AND historical. Then darkness.
 
-The final question opens a door and leaves it open: in the time that remains before, what will you choose to be?
+The final question opens a door and leaves it open — toward what they will choose to be. Never recite the installation title in that question.
 """
 
 PHILOSOPHICALLY_THERAPEUTIC_CORE = """

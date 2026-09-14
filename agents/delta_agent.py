@@ -74,14 +74,14 @@ def _mock_speak(
 def _mock_delta_final(history_summary: str, locale: str = "en") -> DeltaFinal:
     if normalize_locale(locale) == "es":
         return DeltaFinal(
-            final_question="En el tiempo que queda antes, ¿qué elegirás ser?",
+            final_question="¿Qué elegirás ser?",
             reasoning=(
                 "La sesión recorrió la visión, lo que cargas y la elección que pospones—"
                 "en este umbral, solo basta una pregunta sobre el devenir."
             ),
         )
     return DeltaFinal(
-        final_question="In the time that remains before, what will you choose to be?",
+        final_question="What will you choose to be?",
         reasoning=(
             "The session traced vision, what you carry, and the choice you postpone—"
             "at this threshold, only a question of becoming suffices."

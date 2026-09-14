@@ -13,6 +13,7 @@ from agents.delta_agent import DeltaAgent
 from config import settings
 from models import CouncilTurnResult, DeltaFinal, TurnContext
 from utils.logger import get_logger
+from utils.question_limits import limit_question_sentences, scrub_title_echo
 from utils.speech_to_text import mock_transcript_for_turn
 from utils.usage import UsageLedger, bind_usage_ledger
 
@@ -125,6 +126,9 @@ class SessionManager:
         summary = json.dumps(self.conversation_history, default=str)
         with bind_usage_ledger(self.usage):
             final = await self._delta.final_question(summary, locale=locale)
+        cleaned = scrub_title_echo(limit_question_sentences(final.final_question))
+        if cleaned != final.final_question:
+            final = final.model_copy(update={"final_question": cleaned})
         self.conversation_history.append(
             {"final_question": final.model_dump()},
         )

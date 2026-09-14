@@ -80,6 +80,30 @@ def test_api_session_flow_without_live_ai():
     assert "arabi" in data["reflections"]
 
 
+def test_scrub_title_echo_removes_installation_name():
+    from utils.question_limits import scrub_title_echo
+
+    assert (
+        scrub_title_echo("In the time that remains before, what will you choose to be?")
+        == "What will you choose to be?"
+    )
+    assert (
+        scrub_title_echo("What will you choose to be in this time before?")
+        == "What will you choose to be?"
+    )
+    assert scrub_title_echo("What will you choose to be?") == "What will you choose to be?"
+
+
+def test_final_prompt_does_not_feed_the_title_as_the_question():
+    from prompt_training.core import INSTALLATION_OBJECTIVE
+    from prompt_training.prompts import DELTA_FINAL_SYSTEM
+
+    decide = " ".join(block["text"] for block in DELTA_FINAL_SYSTEM).lower()
+    assert "charge: in the time that remains before" not in decide
+    assert "never write the words" in decide
+    assert "what will you choose to be?" not in INSTALLATION_OBJECTIVE.lower()
+
+
 def test_clamp_observation_caps_sentences_and_words():
     from utils.observation_limits import clamp_observation, clamp_reflection_display
 

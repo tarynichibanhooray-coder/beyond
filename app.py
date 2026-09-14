@@ -22,7 +22,7 @@ from models import CouncilTurnResult
 from session import SessionManager
 from utils.question_clarity import is_confusion_transcript, rephrase_question
 from utils.locale import initial_question, localize_member_profiles, normalize_locale, resolve_locale
-from utils.question_limits import limit_question_sentences
+from utils.question_limits import limit_question_sentences, scrub_title_echo
 from utils.session_export import export_transcript_file
 from utils.daily_budget import (
     assert_budget_available,
@@ -330,7 +330,7 @@ async def _finalize_turn(
     )
     if done:
         final = await state.sm.end_session(locale=state.locale)
-        final_question = limit_question_sentences(final.final_question)
+        final_question = scrub_title_echo(limit_question_sentences(final.final_question))
         reasoning = final.reasoning
         record_completed_session(state.sm.usage.snapshot().total_tokens)
 
