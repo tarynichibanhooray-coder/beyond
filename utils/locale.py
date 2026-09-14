@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from typing import Any, Literal
 
 Locale = Literal["en", "es"]
@@ -38,10 +39,39 @@ REPHRASE_SYSTEM: dict[Locale, str] = {
     ),
 }
 
-INITIAL_QUESTIONS: dict[Locale, str] = {
-    "en": "What brought you here?",
-    "es": "¿Qué te trajo aquí?",
+INITIAL_QUESTIONS: dict[Locale, tuple[str, ...]] = {
+    "en": (
+        "What brought you here?",
+        "What feels most alive in your life right now?",
+        "Where do you feel between one thing and another?",
+        "What are you trying to understand about your life?",
+        "What matters to you more than it used to?",
+        "What has changed recently that you are still learning to live with?",
+        "What feels unfinished in your life right now?",
+        "What do you hope will remain true in your life, no matter what else changes?",
+        "What has been occupying your thoughts lately?",
+        "What part of your life needs your attention?",
+        "What feels possible now that did not before?",
+        "What have you begun to see differently lately?",
+    ),
+    "es": (
+        "¿Qué te trajo aquí?",
+        "¿Qué se siente más vivo en tu vida ahora mismo?",
+        "¿Dónde te sientes entre una cosa y otra?",
+        "¿Qué intentas comprender sobre tu vida?",
+        "¿Qué te importa más que antes?",
+        "¿Qué ha cambiado recientemente y todavía estás aprendiendo a vivir con ello?",
+        "¿Qué se siente inconcluso en tu vida ahora mismo?",
+        "¿Qué esperas que siga siendo verdad en tu vida, sin importar qué más cambie?",
+        "¿Qué ha estado ocupando tus pensamientos últimamente?",
+        "¿Qué parte de tu vida necesita tu atención?",
+        "¿Qué se siente posible ahora que antes no?",
+        "¿Qué has comenzado a ver de otra manera últimamente?",
+    ),
 }
+
+_INITIAL_QUESTION_INDEX: dict[Locale, int] = {"en": 0, "es": 0}
+_INITIAL_QUESTION_LOCK = threading.Lock()
 
 COUNCIL_PROFILE_I18N: dict[Locale, dict[str, dict[str, str]]] = {
     "en": {
@@ -182,7 +212,11 @@ def apply_locale_system(system: str | list[dict[str, Any]], locale: str | None) 
 
 
 def initial_question(locale: Locale) -> str:
-    return INITIAL_QUESTIONS[locale]
+    questions = INITIAL_QUESTIONS[locale]
+    with _INITIAL_QUESTION_LOCK:
+        index = _INITIAL_QUESTION_INDEX[locale]
+        _INITIAL_QUESTION_INDEX[locale] = (index + 1) % len(questions)
+    return questions[index]
 
 
 def export_ui(locale: Locale) -> dict[str, str]:

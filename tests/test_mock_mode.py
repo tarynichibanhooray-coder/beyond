@@ -43,7 +43,9 @@ def test_spanish_session_dialogue_in_mock_mode():
     start = client.post("/api/session/start", headers={"Accept-Language": "es-ES"})
     assert start.status_code == 200
     data = start.json()
-    assert data["question"] == "¿Qué te trajo aquí?"
+    from utils.locale import INITIAL_QUESTIONS
+
+    assert data["question"] in INITIAL_QUESTIONS["es"]
 
     session_id = data["session_id"]
     turn = client.post(
@@ -57,6 +59,21 @@ def test_spanish_session_dialogue_in_mock_mode():
     assert any(ch in body["next_question"] for ch in "¿áéíóú")
     assert body["conversation"]
     assert any(ch in body["conversation"][0]["text"] for ch in "áéíóú")
+
+
+def test_initial_questions_rotate_in_order_and_wrap():
+    import utils.locale as locale_mod
+
+    original_indexes = dict(locale_mod._INITIAL_QUESTION_INDEX)
+    try:
+        for locale in ("en", "es"):
+            questions = locale_mod.INITIAL_QUESTIONS[locale]
+            locale_mod._INITIAL_QUESTION_INDEX[locale] = 0
+            assert len(questions) == 12
+            assert tuple(locale_mod.initial_question(locale) for _ in questions) == questions
+            assert locale_mod.initial_question(locale) == questions[0]
+    finally:
+        locale_mod._INITIAL_QUESTION_INDEX.update(original_indexes)
 
 
 def test_api_session_flow_without_live_ai():
