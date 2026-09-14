@@ -435,6 +435,21 @@ def test_index_and_code_assets_are_not_cached():
     )
 
 
+def test_thinking_copy_and_label_text():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    html = (root / "static" / "index.html").read_text()
+    i18n = (root / "static" / "i18n.js").read_text()
+
+    assert 'thinkingReflect1: "Considering your response"' in i18n
+    assert "Three listenings" not in i18n
+    assert 'shareCopiedButton: "Copied"' in i18n
+    assert 'shareCopied: "Link copied to clipboard."' in i18n
+    assert "await copyToClipboard(url)" in html
+    assert 'shareSession.textContent = t("shareCopiedButton")' in html
+
+
 def test_answer_allowed_after_timer_expires():
     import time
 
