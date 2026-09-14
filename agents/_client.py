@@ -42,20 +42,29 @@ def create_message(client, *, label: str, **kwargs):
     return msg
 
 
-def create_json_message(client, *, label: str, messages: list[dict], prefill: str = "{", **kwargs):
-    """Force JSON by prefilling '{'. If max_tokens cuts the object, continue once."""
-    first_messages = [*messages, {"role": "assistant", "content": prefill}]
-    msg = create_message(client, label=label, messages=first_messages, **kwargs)
-    text = prefill + message_text(msg)
+JSON_COMPLETE_AGAIN = (
+    "Your previous reply was cut off. Output ONLY the complete JSON object, "
+    "with no prose and no markdown."
+)
+
+
+def create_json_message(client, *, label: str, messages: list[dict], **kwargs):
+    """Fetch JSON without assistant prefill. If max_tokens cuts it, retry once ending on a user turn."""
+    msg = create_message(client, label=label, messages=messages, **kwargs)
+    text = message_text(msg)
     if getattr(msg, "stop_reason", None) != "max_tokens":
         return text
     continued = create_message(
         client,
         label=f"{label}.continue",
-        messages=[*messages, {"role": "assistant", "content": text}],
+        messages=[
+            *messages,
+            {"role": "assistant", "content": text},
+            {"role": "user", "content": JSON_COMPLETE_AGAIN},
+        ],
         **kwargs,
     )
-    return text + message_text(continued)
+    return message_text(continued) or text
 
 
 def get_anthropic_client():

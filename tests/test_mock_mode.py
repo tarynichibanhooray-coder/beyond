@@ -134,10 +134,10 @@ def test_parse_json_response_extracts_prose_wrapped_object():
     assert result.next_question.startswith("What would you begin")
 
 
-def test_create_json_message_prefills_and_continues_on_max_tokens():
+def test_create_json_message_retries_after_max_tokens_with_user_turn():
     from types import SimpleNamespace
 
-    from agents._client import create_json_message
+    from agents._client import JSON_COMPLETE_AGAIN, create_json_message
 
     calls = []
 
@@ -147,7 +147,7 @@ def test_create_json_message_prefills_and_continues_on_max_tokens():
             if len(calls) == 1:
                 return SimpleNamespace(
                     stop_reason="max_tokens",
-                    content=[SimpleNamespace(text='"chosen_asker": "arabi", ')],
+                    content=[SimpleNamespace(text='{"chosen_asker": "arabi"')],
                     usage=SimpleNamespace(
                         input_tokens=1,
                         output_tokens=1,
@@ -157,7 +157,7 @@ def test_create_json_message_prefills_and_continues_on_max_tokens():
                 )
             return SimpleNamespace(
                 stop_reason="end_turn",
-                content=[SimpleNamespace(text='"next_question": "What now?"}')],
+                content=[SimpleNamespace(text='{"chosen_asker": "arabi", "next_question": "What now?"}')],
                 usage=SimpleNamespace(
                     input_tokens=1,
                     output_tokens=1,
@@ -176,8 +176,8 @@ def test_create_json_message_prefills_and_continues_on_max_tokens():
     )
 
     assert raw == '{"chosen_asker": "arabi", "next_question": "What now?"}'
-    assert calls[0]["messages"][-1] == {"role": "assistant", "content": "{"}
-    assert calls[1]["messages"][-1]["content"].startswith("{")
+    assert calls[0]["messages"][-1]["role"] == "user"
+    assert calls[1]["messages"][-1] == {"role": "user", "content": JSON_COMPLETE_AGAIN}
 
 
 def test_parse_council_decision_falls_back_when_model_returns_prose():
