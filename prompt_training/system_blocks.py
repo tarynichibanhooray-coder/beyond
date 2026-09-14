@@ -7,6 +7,7 @@ from prompt_training.core import (
     ARABI_HUNGER,
     BLAKE_HUNGER,
     COUNCIL_FRAME,
+    COUNCIL_TENSIONS,
     KIERKEGAARD_HUNGER,
     MORRISON_HUNGER,
 )
@@ -22,7 +23,7 @@ HUNGER_BY_MEMBER: dict[CouncilMemberId, str] = {
 def cached_system_base(roster: list[CouncilMemberId] | None = None) -> str:
     roster = roster or parse_roster()
     hungers = "\n".join(HUNGER_BY_MEMBER[member_id] for member_id in roster)
-    return f"{COUNCIL_FRAME}\n{hungers}"
+    return f"{COUNCIL_FRAME}\n{hungers}\n{COUNCIL_TENSIONS}"
 
 
 # Default roster prefix (used when build_system() called without explicit roster).

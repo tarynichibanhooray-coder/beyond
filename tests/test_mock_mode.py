@@ -241,6 +241,35 @@ def test_council_decide_prompt_is_json_only():
     assert "hoping would fail" not in text
     assert "take them at their word" in text
     assert "never copy a sample" in text
+    assert "never copy an example" in text
+    assert text.count("someone said") >= 9
+
+
+def test_hungers_are_methods_with_unlike_examples():
+    from prompt_training.core import (
+        ARABI_HUNGER,
+        BLAKE_HUNGER,
+        KIERKEGAARD_HUNGER,
+        MORRISON_HUNGER,
+    )
+    from prompt_training.system_blocks import CACHED_SYSTEM_BASE
+
+    for name, text in (
+        ("arabi", ARABI_HUNGER),
+        ("morrison", MORRISON_HUNGER),
+        ("kierkegaard", KIERKEGAARD_HUNGER),
+        ("blake", BLAKE_HUNGER),
+    ):
+        lower = text.lower()
+        assert lower.count("someone said") >= 3, name
+        assert "never reuse" in lower, name
+        assert "you do not excavate wounds" not in lower, name
+
+    base = CACHED_SYSTEM_BASE.lower()
+    assert "write from your own center first" in base
+    assert "courtesy" in base
+    assert "single individual" in base
+    assert base.index("you are muhyiddin ibn arabi") < base.index("council tensions")
 
 
 def test_parse_council_decision_falls_back_when_model_returns_prose():
