@@ -238,6 +238,9 @@ def test_council_decide_prompt_is_json_only():
     assert "privately" not in text
     assert "json function" in text
     assert '{"chosen_asker"' in text.replace(" ", "")
+    assert "hoping would fail" not in text
+    assert "take them at their word" in text
+    assert "never copy a sample" in text
 
 
 def test_parse_council_decision_falls_back_when_model_returns_prose():

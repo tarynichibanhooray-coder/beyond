@@ -156,10 +156,10 @@ def _fallback_question(transcript: str, locale: str = "en") -> str:
     seed = transcript.strip()
     if normalize_locale(locale) == "es":
         if not seed:
-            return "¿Qué te niegas a elegir, incluso ahora?"
+            return "¿Qué te importa ahora, incluso aquí?"
         return f'Dijiste: "{seed[:120]}". ¿Qué verdad dentro de eso estás listo para vivir hoy?'
     if not seed:
-        return "What are you refusing to choose, even now?"
+        return "What matters to you now, even here?"
     return f'You said, "{seed[:120]}". What truth inside that are you ready to live by today?'
 
 

@@ -38,15 +38,15 @@ def _mock_decide(ctx: TurnContext, conversation: list[ConversationLine], roster:
     if normalize_locale(ctx.locale) == "es":
         questions = {
             "arabi": "¿Y si este umbral en el que estás no está antes de tu vida, sino en el lugar donde tu búsqueda se hace visible?",
-            "blake": "¿Qué imagen te niegas a ver que sigue volviendo a ti?",
-            "morrison": "¿La historia de quién sigues representando—y qué diría tu cuerpo si dejaras de hacerlo?",
+            "blake": "¿Qué imagen sigue volviendo a ti cuando dejas de forzar una respuesta?",
+            "morrison": "¿Qué palabra usaste ahora mismo — y qué está realmente presente en ella?",
             "kierkegaard": "¿Qué comenzarías si confiaras en que convertirte en ti mismo está permitido?",
         }
     else:
         questions = {
             "arabi": "What if this threshold you stand in is not before your life—but the place where your searching becomes visible?",
-            "blake": "What image are you refusing to see that keeps returning to you?",
-            "morrison": "Whose story are you still performing—and what would your body say if you stopped?",
+            "blake": "What image keeps returning when you stop forcing an answer?",
+            "morrison": "What word did you just use — and what is actually present in it?",
             "kierkegaard": "What would you begin if you trusted that becoming yourself is allowed?",
         }
     return CouncilDecision(
