@@ -20,13 +20,13 @@ from models import (
 def _mock_reflect(ctx: TurnContext) -> PsiOutput:
     if normalize_locale(ctx.locale) == "es":
         return PsiOutput(
-            witness_read="Piden ser vistos sin nombrar lo que necesitan que se vea.",
-            carried_story="Voces antiguas aún pueden estar midiendo si se les permite estar perdidos.",
+            witness_read="Sus palabras se sostienen solas; no piden ser descifradas.",
+            carried_story="Lo que cargan es suyo para nombrar, no nuestro para adivinar.",
             color_intensity=70,
         )
     return PsiOutput(
-        witness_read="They are asking to be seen without naming what they need seen.",
-        carried_story="Older voices may still be measuring whether they are allowed to be lost.",
+        witness_read="Their words stand on their own; nothing here is asking to be decoded.",
+        carried_story="What they carry is theirs to name, not ours to guess.",
         color_intensity=70,
     )
 
@@ -76,6 +76,7 @@ class PsiAgent:
                 label="morrison.reflect",
                 model=settings.anthropic_model,
                 max_tokens=350,
+                temperature=0.9,
                 system=apply_locale_system(PSI_REFLECT, ctx.locale),
                 messages=[
                     {

@@ -38,7 +38,7 @@ def coerce_kierkegaard_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "vision_read",
             "dread",
         )
-        or "Something in them is opening toward a life they have not yet claimed.",
+        or "There is real feeling in what they said, even where the words ran out.",
         "avoided_choice": _first_str(
             data,
             "avoided_choice",
@@ -47,7 +47,7 @@ def coerce_kierkegaard_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "blocked_imagination",
             "carried_story",
         )
-        or "They hesitate before a good they already recognize.",
+        or "Nothing here reads as a refusal, only an answer still finding its shape.",
         "leap_pressure": _first_str(
             data,
             "leap_pressure",
@@ -57,7 +57,7 @@ def coerce_kierkegaard_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "barzakh_note",
             "blocked_imagination",
         )
-        or "Becoming themselves is nearer than they think—and worth trusting.",
+        or "Whatever they choose next is theirs to choose.",
         "color_intensity": _first_int(
             data, "color_intensity", "mirror_clarity", "intensity"
         ),
@@ -74,15 +74,15 @@ def coerce_arabi_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "vision_read",
             "dread_read",
         )
-        or "Something is disclosing itself through their words.",
+        or "Their words are still worth sitting with, even without a clean read.",
         "barzakh_note": _first_str(
             data, "barzakh_note", "threshold_note", "leap_pressure"
         )
-        or "They stand in a threshold not yet crossed.",
+        or "They are exactly where they are, and that is enough to begin from.",
         "mirror_read": _first_str(
             data, "mirror_read", "mirror_clarity", "carried_story", "avoided_choice"
         )
-        or "Something larger than biography moves through this moment.",
+        or "This moment belongs only to them.",
         "color_intensity": _first_int(
             data, "color_intensity", "mirror_clarity", "intensity"
         ),
@@ -99,7 +99,7 @@ def coerce_psi_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "dread_read",
             "vision_read",
         )
-        or "They are asking to be seen without naming what they need seen.",
+        or "Their words deserve to be taken exactly as given.",
         "carried_story": _first_str(
             data,
             "carried_story",
@@ -107,7 +107,7 @@ def coerce_psi_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "avoided_choice",
             "blocked_imagination",
         )
-        or "Older voices may still be measuring whether they are allowed to be lost.",
+        or "What they carry is theirs to name, not ours to guess.",
         "color_intensity": _first_int(
             data, "color_intensity", "mirror_clarity", "intensity"
         ),
@@ -120,7 +120,7 @@ def coerce_lambda_reflect(data: dict[str, Any]) -> dict[str, Any]:
         symbols = []
     symbols = [str(s).strip() for s in symbols if str(s).strip()][:3]
     if not symbols:
-        symbols = ["closed door", "dim lamp"]
+        symbols = ["unlit window", "quiet flame"]
 
     return {
         "vision_read": _first_str(
@@ -130,7 +130,7 @@ def coerce_lambda_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "witness_read",
             "dread_read",
         )
-        or "A vision strains beneath their words.",
+        or "There is an image in their words worth staying with, even unclear.",
         "symbols": symbols,
         "blocked_imagination": _first_str(
             data,
@@ -139,7 +139,7 @@ def coerce_lambda_reflect(data: dict[str, Any]) -> dict[str, Any]:
             "carried_story",
             "barzakh_note",
         )
-        or "They have learned to distrust their own seeing.",
+        or "Nothing here suggests they've stopped seeing — only that the words are still catching up.",
         "color_intensity": _first_int(
             data, "color_intensity", "mirror_clarity", "intensity"
         ),

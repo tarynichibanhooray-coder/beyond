@@ -17,19 +17,19 @@ def _mock_reflect(ctx: TurnContext) -> ArabiOutput:
         return ArabiOutput(
             disclosure_read=(
                 f"Su búsqueda no es un fracaso: \"{snippet}\" "
-                "muestra algo más grande moviéndose a través de ellos."
+                "merece que nos quedemos con ello tal como lo dijeron."
             ),
             barzakh_note="Están en el intermedio mismo—no antes de la vida real, sino dentro de ella.",
-            mirror_read="Algo más grande que su historia personal se mueve en este momento.",
+            mirror_read="Este momento les pertenece solo a ellos.",
             color_intensity=64,
         )
     return ArabiOutput(
         disclosure_read=(
             f"Their searching is not failure: \"{snippet}\" "
-            "shows something larger moving through them."
+            "is worth staying with exactly as they said it."
         ),
         barzakh_note="They stand in the in-between itself—not before real life, but inside it.",
-        mirror_read="Something larger than their personal story moves through this moment.",
+        mirror_read="This moment belongs only to them.",
         color_intensity=64,
     )
 
@@ -63,6 +63,7 @@ class ArabiAgent:
                 label="arabi.reflect",
                 model=settings.anthropic_model,
                 max_tokens=280,
+                temperature=0.9,
                 system=apply_locale_system(ARABI_REFLECT, ctx.locale),
                 messages=[
                     {

@@ -66,6 +66,7 @@ def call_speak(
     *,
     label: str = "council.speak",
     max_tokens: int = 180,
+    temperature: float = 0.9,
     locale: str = "en",
 ) -> str:
     client = get_anthropic_client()
@@ -76,6 +77,7 @@ def call_speak(
         label=label,
         model=settings.anthropic_model,
         max_tokens=max_tokens,
+        temperature=temperature,
         system=apply_locale_system(system, locale),
         messages=[{"role": "user", "content": user_content}],
     )

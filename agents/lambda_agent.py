@@ -10,7 +10,7 @@ from config import settings
 from utils.locale import apply_locale_system, normalize_locale
 from models import (
     ConversationLine,
-    PsiOutput,
+    LambdaOutput,
     TurnContext,
 )
 
@@ -21,7 +21,7 @@ def _mock_reflect(ctx: TurnContext) -> LambdaOutput:
         return LambdaOutput(
             vision_read=f"Una visión se tensa bajo sus palabras: {snippet}",
             symbols=["umbral", "fuego", "ojo"],
-            blocked_imagination="No mirarán hasta que el camino sea cierto.",
+            blocked_imagination="Nada aquí dice que dejaron de ver—solo que las palabras todavía las alcanzan.",
             color_intensity=62,
         )
     return LambdaOutput(
@@ -31,7 +31,7 @@ def _mock_reflect(ctx: TurnContext) -> LambdaOutput:
             else f"A vision strains beneath their words: {ctx.transcript}"
         ),
         symbols=["threshold", "fire", "eye"],
-        blocked_imagination="They will not look until the path is certain.",
+        blocked_imagination="Nothing here suggests they've stopped seeing — only that the words are still catching up.",
         color_intensity=62,
     )
 
@@ -62,6 +62,7 @@ class LambdaAgent:
                 label="blake.reflect",
                 model=settings.anthropic_model,
                 max_tokens=280,
+                temperature=0.9,
                 system=apply_locale_system(LAMBDA_REFLECT, ctx.locale),
                 messages=[
                     {

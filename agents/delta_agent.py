@@ -20,26 +20,20 @@ def _mock_reflect(ctx: TurnContext) -> KierkegaardReflection:
     if normalize_locale(ctx.locale) == "es":
         return KierkegaardReflection(
             dread_read=(
-                "Algo en ellos se abre hacia una vida que aún no han reclamado—"
-                "el vértigo ante la posibilidad infinita, no un fracaso."
+                "Hay un sentimiento real en lo que dijeron, incluso donde "
+                "las palabras se quedaron cortas—eso no es un fracaso."
             ),
-            avoided_choice="Dudan ante un bien que ya reconocen.",
-            leap_pressure=(
-                "Convertirse en uno mismo está más cerca de lo que creen—"
-                "y vale la pena confiar, aunque aterrorice."
-            ),
+            avoided_choice="Nada aquí se lee como una negativa, solo una respuesta que aún busca su forma.",
+            leap_pressure="Lo que elijan después es suyo para elegir.",
             color_intensity=58,
         )
     return KierkegaardReflection(
         dread_read=(
-            "Something in them is opening toward a life they have not yet claimed—"
-            "the dizziness before infinite possibility, not failure."
+            "There is real feeling in what they said, even where the words ran "
+            "out—that is not failure."
         ),
-        avoided_choice="They hesitate before a good they already recognize.",
-        leap_pressure=(
-            "Becoming themselves is nearer than they think—and worth trusting, "
-            "even when it terrifies."
-        ),
+        avoided_choice="Nothing here reads as a refusal, only an answer still finding its shape.",
+        leap_pressure="Whatever they choose next is theirs to choose.",
         color_intensity=58,
     )
 
@@ -103,6 +97,7 @@ class DeltaAgent:
                 label="kierkegaard.reflect",
                 model=settings.anthropic_model,
                 max_tokens=350,
+                temperature=0.9,
                 system=apply_locale_system(KIERKEGAARD_REFLECT, ctx.locale),
                 messages=[
                     {
@@ -150,6 +145,7 @@ class DeltaAgent:
                 label="kierkegaard.final",
                 model=settings.anthropic_model,
                 max_tokens=400,
+                temperature=0.85,
                 system=apply_locale_system(DELTA_FINAL_SYSTEM, locale),
                 messages=[
                     {
