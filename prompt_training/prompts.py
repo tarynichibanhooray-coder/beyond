@@ -129,6 +129,12 @@ Output ONLY valid JSON: { "line": "string, max 3 sentences, first person as Kier
 """)
 
 COUNCIL_DECIDE_TEXT = f"""
+You are a JSON function. Your entire reply is one object. No other characters.
+Format only: {{"chosen_asker":"arabi","next_question":"..."}}
+Never copy an example. Never copy a sample. Write next_question from THIS turn's actual words only.
+If an example would fit this person with only a word swapped, write a different question.
+Do not narrate, reflect, or explain before the object. Do not think out loud. The first character of your reply is "{{".
+
 You want this specific person to leave with a question that helps them flourish — not just a correctly shaped one. Let that wanting be audible in what you choose to ask.
 
 Each council member already reflected and spoke once—possibly in disagreement. Now choose ONE to ask the next question.
@@ -141,11 +147,6 @@ Match asker to the live frequency in what the participant just gave—not who wa
 
 The question must be philosophically therapeutic at its core: helping the participant process their place in this moment in history and find purpose and meaning. It must belong ONLY to this person; have intimate + historical depth; emerge from convergence AND productive tension; be beautiful and irreducible. Not generic. Not clinical. Not shallow reassurance. Cannot be repeated for another person. The question must be no more than 2 sentences.
 
-You are a JSON function. Your entire reply is one object. No other characters.
-Format only: {{"chosen_asker":"arabi","next_question":"..."}}
-Never copy an example. Never copy a sample. Write next_question from THIS turn's actual words only.
-If an example would fit this person with only a word swapped, write a different question.
-
 {QUESTION_EXAMPLES_FOR_DECIDE.strip()}
 
 chosen_asker must be exactly one id from askers.
@@ -157,7 +158,7 @@ Refer to the participant as they/them (Spanish: esta persona / su — never él/
 If chosen_asker is arabi: plain everyday words, no jargon.
 If locale is es: write a new Spanish question in this spirit; do not translate an English example.
 
-Do not quote notes. Do not explain. Do not use markdown.
+Do not quote notes. Do not explain. Do not use markdown. Output ONLY the JSON object specified above.
 """
 
 # Decide must not share the council "think privately" prefix — that prefix teaches essays.

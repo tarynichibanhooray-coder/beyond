@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 
+from pydantic import ValidationError
+
 from agents._client import create_message, get_anthropic_client, parse_json_response
+from agents._reflect_coerce import coerce_psi_reflect
 from agents._speak import call_speak, speak_user_block
 from prompt_training.prompts import MORRISON_SPEAK, PSI_REFLECT
 from config import settings
@@ -92,7 +95,10 @@ class PsiAgent:
                     },
                 ],
             )
-            return parse_json_response(msg.content[0].text, PsiOutput)
+            try:
+                return parse_json_response(msg.content[0].text, PsiOutput)
+            except (ValueError, ValidationError):
+                return PsiOutput.model_validate(coerce_psi_reflect({}))
 
         return await asyncio.to_thread(_call)
 

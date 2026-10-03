@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 
+from pydantic import ValidationError
+
 from agents._client import create_message, get_anthropic_client, parse_json_response
+from agents._reflect_coerce import coerce_kierkegaard_reflect
 from agents._speak import call_speak, speak_user_block
 from prompt_training.prompts import DELTA_FINAL_SYSTEM, KIERKEGAARD_REFLECT, KIERKEGAARD_SPEAK
 from config import settings
@@ -113,7 +116,10 @@ class DeltaAgent:
                     },
                 ],
             )
-            return parse_json_response(msg.content[0].text, KierkegaardReflection)
+            try:
+                return parse_json_response(msg.content[0].text, KierkegaardReflection)
+            except (ValueError, ValidationError):
+                return KierkegaardReflection.model_validate(coerce_kierkegaard_reflect({}))
 
         return await asyncio.to_thread(_call)
 
@@ -160,6 +166,9 @@ class DeltaAgent:
                     },
                 ],
             )
-            return parse_json_response(msg.content[0].text, DeltaFinal)
+            try:
+                return parse_json_response(msg.content[0].text, DeltaFinal)
+            except (ValueError, ValidationError):
+                return _mock_delta_final(history_snippet, locale)
 
         return await asyncio.to_thread(_call)

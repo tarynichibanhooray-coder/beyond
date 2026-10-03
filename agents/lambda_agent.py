@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 
+from pydantic import ValidationError
+
 from agents._client import create_message, get_anthropic_client, parse_json_response
+from agents._reflect_coerce import coerce_lambda_reflect
 from agents._speak import call_speak, speak_user_block
 from prompt_training.prompts import BLAKE_SPEAK, LAMBDA_REFLECT
 from config import settings
@@ -78,7 +81,10 @@ class LambdaAgent:
                     },
                 ],
             )
-            return parse_json_response(msg.content[0].text, LambdaOutput)
+            try:
+                return parse_json_response(msg.content[0].text, LambdaOutput)
+            except (ValueError, ValidationError):
+                return LambdaOutput.model_validate(coerce_lambda_reflect({}))
 
         return await asyncio.to_thread(_call)
 

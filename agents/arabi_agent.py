@@ -3,7 +3,10 @@ from __future__ import annotations
 import asyncio
 import json
 
+from pydantic import ValidationError
+
 from agents._client import create_message, get_anthropic_client, parse_json_response
+from agents._reflect_coerce import coerce_arabi_reflect
 from agents._speak import call_speak, speak_user_block
 from prompt_training.prompts import ARABI_REFLECT, ARABI_SPEAK
 from config import settings
@@ -79,7 +82,10 @@ class ArabiAgent:
                     },
                 ],
             )
-            return parse_json_response(msg.content[0].text, ArabiOutput)
+            try:
+                return parse_json_response(msg.content[0].text, ArabiOutput)
+            except (ValueError, ValidationError):
+                return ArabiOutput.model_validate(coerce_arabi_reflect({}))
 
         return await asyncio.to_thread(_call)
 

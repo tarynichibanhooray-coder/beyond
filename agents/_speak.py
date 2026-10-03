@@ -21,14 +21,20 @@ class SpeakLine(BaseModel):
     line: str
 
 
-def parse_speak_line(text: str) -> str:
+FALLBACK_SPEAK_LINE = {
+    "en": "I am listening, and what you said matters.",
+    "es": "Te estoy escuchando, y lo que dijiste importa.",
+}
+
+
+def parse_speak_line(text: str, locale: str = "en") -> str:
     try:
         return parse_json_response(text, SpeakLine).line.strip()
     except (ValueError, ValidationError):
         line = extract_json_block(text).strip()
         if line:
             return line
-        raise
+        return FALLBACK_SPEAK_LINE.get(normalize_locale(locale), FALLBACK_SPEAK_LINE["en"])
 
 
 def _reflections_payload(
@@ -82,4 +88,4 @@ def call_speak(
         messages=[{"role": "user", "content": user_content}],
     )
     text = msg.content[0].text
-    return parse_speak_line(text)
+    return parse_speak_line(text, locale)
